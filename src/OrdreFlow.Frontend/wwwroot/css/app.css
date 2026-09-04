@@ -101,3 +101,47 @@ a, .btn-link {
 code {
     color: #c02d76;
 }
+
+.order-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.order-card {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    padding: 1rem 1.25rem;
+    min-height: 3.5rem;
+    background: #fff;
+    border: 1px solid #d3d3d3;
+    border-radius: 0.5rem;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+
+.order-card-selected {
+    border-color: #1b6ec2;
+    border-width: 2px;
+    background: #eaf3fb;
+}
+
+.order-card-name {
+    font-weight: 600;
+}
+
+.order-card-customer {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.order-selection-summary {
+    margin-top: 1.5rem;
+}

@@ -12,5 +12,7 @@ var apiBaseUrl = builder.Configuration["ApiBaseUrl"]
 
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
 builder.Services.AddScoped<ITimeEntriesApiClient, TimeEntriesApiClient>();
+builder.Services.AddScoped<IOrdersProvider, DummyOrdersProvider>();
+builder.Services.AddScoped<SelectedOrderState>();
 
 await builder.Build().RunAsync();
