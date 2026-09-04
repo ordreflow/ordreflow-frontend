@@ -37,7 +37,23 @@ The complete stack is documented in the shared [technology stack documentation](
 
 ## Current Status
 
-This repository is currently in the initial setup phase. The project structure, local run instructions, API configuration, and test commands will be added when the Blazor application is scaffolded.
+The Blazor WebAssembly project has been scaffolded. API configuration and test commands will be added as the POC flow is implemented.
+
+## Project Structure
+
+- `OrdreFlow.Frontend.sln` — solution file
+- `src/OrdreFlow.Frontend/` — Blazor WebAssembly standalone app
+
+## Running Locally
+
+Requires the .NET 8 SDK.
+
+```bash
+dotnet restore
+dotnet run --project src/OrdreFlow.Frontend
+```
+
+The app is served at the URL printed in the console (see `src/OrdreFlow.Frontend/Properties/launchSettings.json`).
 
 ## Planned POC Flow
 
