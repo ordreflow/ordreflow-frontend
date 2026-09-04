@@ -10,7 +10,16 @@ public class TimeEntriesApiClient(HttpClient httpClient) : ITimeEntriesApiClient
         CreateTimeEntryRequest request,
         CancellationToken cancellationToken = default)
     {
-        var response = await httpClient.PostAsJsonAsync("api/time_entries", request, cancellationToken);
+        HttpResponseMessage response;
+        try
+        {
+            response = await httpClient.PostAsJsonAsync("api/time_entries", request, cancellationToken);
+        }
+        catch (HttpRequestException)
+        {
+            return ApiResult<TimeEntry>.Failure(
+                [new ApiError("network_error", "Could not reach the server. Check that the API is running and reachable.")]);
+        }
 
         if (response.StatusCode == HttpStatusCode.OK)
         {

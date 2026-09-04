@@ -1,8 +1,7 @@
 @page "/"
 @inject IOrdersProvider OrdersProvider
 @inject SelectedOrderState SelectedOrderState
-@using OrdreFlow.Frontend.Models
-@using OrdreFlow.Frontend.Services
+@inject NavigationManager Navigation
 
 <PageTitle>OrdreFlow</PageTitle>
 
@@ -39,6 +38,9 @@ else
     <p class="order-selection-summary">
         Selected: <strong>@SelectedOrderState.SelectedOrder.Name</strong>
     </p>
+    <button type="button" class="btn btn-primary w-100" @onclick="ContinueToRegisterTime">
+        Continue
+    </button>
 }
 
 @code {
@@ -50,4 +52,6 @@ else
     }
 
     private void Select(Order order) => SelectedOrderState.Select(order);
+
+    private void ContinueToRegisterTime() => Navigation.NavigateTo("/register-time");
 }

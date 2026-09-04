@@ -1,0 +1,98 @@
+@page "/register-time"
+@inject SelectedOrderState SelectedOrderState
+@inject ITimeEntriesApiClient TimeEntriesApiClient
+@inject NavigationManager Navigation
+
+<PageTitle>OrdreFlow</PageTitle>
+
+@if (order is null)
+{
+    <p>Redirecting to order selection...</p>
+}
+else
+{
+    <h1>Register time</h1>
+    <p class="order-selection-summary">
+        For: <strong>@order.Name</strong> (@order.Customer)
+    </p>
+
+    <EditForm Model="formModel" OnValidSubmit="Submit">
+        <DataAnnotationsValidator />
+
+        <div class="form-field">
+            <label for="date">Date</label>
+            <InputDate id="date" class="form-control form-control-lg" @bind-Value="formModel.Date" />
+            <ValidationMessage For="() => formModel.Date" />
+        </div>
+
+        <div class="form-field">
+            <label for="hours">Hours worked</label>
+            <InputNumber id="hours" class="form-control form-control-lg" step="0.25"
+                         inputmode="decimal" @bind-Value="formModel.Hours" />
+            <ValidationMessage For="() => formModel.Hours" />
+        </div>
+
+        <div class="form-field">
+            <label for="comment">Comment (optional)</label>
+            <InputTextArea id="comment" class="form-control" rows="3" @bind-Value="formModel.Comment" />
+            <ValidationMessage For="() => formModel.Comment" />
+        </div>
+
+        @if (submitError is not null)
+        {
+            <p class="validation-message">@submitError</p>
+        }
+
+        <button type="submit" class="btn btn-primary w-100" disabled="@isSubmitting">
+            @(isSubmitting ? "Saving..." : "Save time registration")
+        </button>
+    </EditForm>
+}
+
+@code {
+    private Order? order;
+    private readonly TimeRegistrationFormModel formModel = new();
+    private bool isSubmitting;
+    private string? submitError;
+
+    protected override void OnInitialized()
+    {
+        order = SelectedOrderState.SelectedOrder;
+        if (order is null)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (order is null || formModel.Hours is null)
+        {
+            return;
+        }
+
+        isSubmitting = true;
+        submitError = null;
+
+        var request = new CreateTimeEntryRequest(
+            order.Id,
+            formModel.Date,
+            formModel.Hours.Value,
+            null,
+            null,
+            formModel.Comment);
+
+        var result = await TimeEntriesApiClient.CreateAsync(request);
+
+        isSubmitting = false;
+
+        if (result.IsSuccess)
+        {
+            Navigation.NavigateTo("/");
+        }
+        else
+        {
+            submitError = string.Join(" ", result.Errors.Select(e => e.Message));
+        }
+    }
+}

@@ -145,3 +145,22 @@ code {
 .order-selection-summary {
     margin-top: 1.5rem;
 }
+
+.form-field {
+    margin-bottom: 1.25rem;
+}
+
+    .form-field label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.35rem;
+    }
+
+    .form-field .form-control {
+        width: 100%;
+    }
+
+.form-control-lg {
+    min-height: 3rem;
+    font-size: 1.1rem;
+}
