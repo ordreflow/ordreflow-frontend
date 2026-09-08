@@ -164,3 +164,8 @@ code {
     min-height: 3rem;
     font-size: 1.1rem;
 }
+
+.weekly-total {
+    font-size: 1.1rem;
+    margin-bottom: 1.25rem;
+}

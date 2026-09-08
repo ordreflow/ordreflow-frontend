@@ -1,6 +1,7 @@
 @page "/register-time"
 @inject SelectedOrderState SelectedOrderState
 @inject ITimeEntriesApiClient TimeEntriesApiClient
+@inject SavedTimeEntriesState SavedTimeEntriesState
 @inject NavigationManager Navigation
 
 <PageTitle>OrdreFlow</PageTitle>
@@ -88,7 +89,8 @@ else
 
         if (result.IsSuccess)
         {
-            Navigation.NavigateTo("/");
+            SavedTimeEntriesState.Add(new SavedTimeEntry(result.Value!, order));
+            Navigation.NavigateTo("/time-entries");
         }
         else
         {

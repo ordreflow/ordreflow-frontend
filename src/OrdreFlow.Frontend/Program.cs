@@ -14,5 +14,6 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseU
 builder.Services.AddScoped<ITimeEntriesApiClient, TimeEntriesApiClient>();
 builder.Services.AddScoped<IOrdersProvider, DummyOrdersProvider>();
 builder.Services.AddScoped<SelectedOrderState>();
+builder.Services.AddScoped<SavedTimeEntriesState>();
 
 await builder.Build().RunAsync();
