@@ -28,6 +28,8 @@ The frontend is not responsible for:
 - Responsive, mobile-first UI
 
 The complete stack is documented in the shared [technology stack documentation](https://github.com/ordreflow/ordreflow-docs/blob/main/docs/technology-stack.md).
+The shared [development environment documentation](https://github.com/ordreflow/ordreflow-docs/blob/main/docs/development-environment.md)
+describes the Flox and WSL conventions.
 
 ## Repository Relationships
 
@@ -37,7 +39,62 @@ The complete stack is documented in the shared [technology stack documentation](
 
 ## Current Status
 
-This repository is currently in the initial setup phase. The project structure, local run instructions, API configuration, and test commands will be added when the Blazor application is scaffolded.
+The Blazor WebAssembly project has been scaffolded. API configuration and test commands will be added as the POC flow is implemented.
+
+## Project Structure
+
+- `OrdreFlow.Frontend.sln` — solution file
+- `src/OrdreFlow.Frontend/` — Blazor WebAssembly standalone app
+- `.flox/env/manifest.toml` — Flox environment definition
+- `.flox/env/manifest.lock` — locked Flox package resolution
+- `global.json` — required .NET SDK version
+
+## Running Locally
+
+Install [Flox](https://flox.dev/docs/install-flox/install/) before setting up the
+repository. The committed Flox environment provides the exact .NET SDK version
+required by this project: `8.0.130`. The root `global.json` keeps the .NET CLI
+on that SDK version.
+
+From the repository root, activate the environment:
+
+```bash
+flox activate
+```
+
+Run the remaining commands inside the activated shell:
+
+```bash
+dotnet --version
+dotnet restore
+dotnet run --project src/OrdreFlow.Frontend
+```
+
+The version check should print `8.0.130`. The app is served at the URL printed
+in the console (see `src/OrdreFlow.Frontend/Properties/launchSettings.json`).
+
+For a single command without opening an interactive shell:
+
+```bash
+flox activate -c 'dotnet restore && dotnet run --project src/OrdreFlow.Frontend'
+```
+
+The frontend Flox environment intentionally contains only the .NET SDK. It
+does not provide Git, Node.js, PostgreSQL, Docker, or Entity Framework Core
+tools. Those dependencies belong to the repository or environment that needs
+them.
+
+## Updating the Development Environment
+
+Use Flox from the repository root when changing the development environment:
+
+```bash
+flox search <package>
+flox install <package>
+```
+
+Commit changes to `.flox/env/manifest.toml` and `.flox/env/manifest.lock`
+together. Flox runtime, cache, log, and telemetry files are local-only.
 
 ## Planned POC Flow
 
