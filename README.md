@@ -28,6 +28,8 @@ The frontend is not responsible for:
 - Responsive, mobile-first UI
 
 The complete stack is documented in the shared [technology stack documentation](https://github.com/ordreflow/ordreflow-docs/blob/main/docs/technology-stack.md).
+The shared [development environment documentation](https://github.com/ordreflow/ordreflow-docs/blob/main/docs/development-environment.md)
+describes the Flox and WSL conventions.
 
 ## Repository Relationships
 
