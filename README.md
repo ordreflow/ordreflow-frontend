@@ -43,11 +43,55 @@ The Blazor WebAssembly project has been scaffolded. API configuration and test c
 
 ## Project Structure
 
-- `OrdreFlow.Frontend.sln` — solution file
-- `src/OrdreFlow.Frontend/` — Blazor WebAssembly standalone app
-- `.flox/env/manifest.toml` — Flox environment definition
-- `.flox/env/manifest.lock` — locked Flox package resolution
-- `global.json` — required .NET SDK version
+```text
+.
+|-- OrdreFlow.Frontend.sln
+|-- global.json
+|-- .flox/
+|   `-- env/
+|       |-- manifest.toml
+|       `-- manifest.lock
+|-- src/
+|   `-- OrdreFlow.Frontend/
+|       |-- App.razor
+|       |-- Program.cs
+|       |-- Layout/
+|       |-- Models/
+|       |-- Pages/
+|       |-- Properties/
+|       `-- wwwroot/
+|-- GIT_BRANCHING.md
+`-- README.md
+```
+
+- `OrdreFlow.Frontend.sln`: solution file used by the .NET CLI and IDEs.
+- `global.json`: pins the repository to .NET SDK `8.0.130`.
+- `.flox/env/manifest.toml`: declares the development environment packages.
+- `.flox/env/manifest.lock`: locks the resolved Flox package versions.
+- `GIT_BRANCHING.md`: repository-specific branch and pull-request rules.
+- `src/OrdreFlow.Frontend/`: the standalone Blazor WebAssembly application.
+- `src/OrdreFlow.Frontend/App.razor`: configures client-side routing and the default layout.
+- `src/OrdreFlow.Frontend/Program.cs`: starts the WebAssembly host, reads `ApiBaseUrl`, and registers HTTP clients and application services.
+- `src/OrdreFlow.Frontend/Pages/`: contains the route-level screens.
+- `src/OrdreFlow.Frontend/Pages/Home.razor`: displays available orders and stores the selected order.
+- `src/OrdreFlow.Frontend/Pages/RegisterTime.razor`: validates and submits a time registration.
+- `src/OrdreFlow.Frontend/Pages/TimeEntries.razor`: displays successfully submitted entries and the current week's total.
+- `src/OrdreFlow.Frontend/Layout/`: contains shared application chrome, including the main layout and navigation menu.
+- `src/OrdreFlow.Frontend/Models/`: contains domain, form, and API request/response models.
+- `src/OrdreFlow.Frontend/Services/`: contains API clients, provider abstractions, and scoped client-side state. `DummyOrdersProvider` currently supplies sample orders, while `SavedTimeEntriesState` retains successful entries for the current browser session.
+- `src/OrdreFlow.Frontend/wwwroot/`: contains static assets, CSS, Bootstrap, and runtime configuration such as `appsettings.json`.
+- `src/OrdreFlow.Frontend/Properties/launchSettings.json`: contains local launch profiles and development URLs.
+
+## Application Flow
+
+The current proof-of-concept flow is intentionally small:
+
+1. `Home.razor` loads sample orders through `IOrdersProvider` and records the user's selection in `SelectedOrderState`.
+2. `RegisterTime.razor` reads the selected order, validates the form with data annotations, and sends a `POST` request to `api/time_entries` through `TimeEntriesApiClient`.
+3. The API response is converted into a typed result. Successes are added to `SavedTimeEntriesState`; failures are shown in the form.
+4. `TimeEntries.razor` reads the entries saved during the current session and calculates the Monday-to-Sunday weekly total.
+
+The frontend communicates with the backend through HTTP/JSON only. It does not connect directly to PostgreSQL, use Entity Framework Core, or replace business and security rules that belong in the API. Orders and saved-entry history will move to backend-backed services when the corresponding API endpoints are available.
 
 ## Running Locally
 
