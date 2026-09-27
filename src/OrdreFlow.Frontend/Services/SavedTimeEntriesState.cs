@@ -18,6 +18,28 @@ public class SavedTimeEntriesState
         Changed?.Invoke();
     }
 
+    public SavedTimeEntry? Find(int entryId) =>
+        entries.FirstOrDefault(e => e.Entry.Id == entryId);
+
+    // Backend has no update/delete endpoints yet, so edits and deletes only change this session's list.
+    public void Update(SavedTimeEntry entry)
+    {
+        var index = entries.FindIndex(e => e.Entry.Id == entry.Entry.Id);
+        if (index >= 0)
+        {
+            entries[index] = entry;
+            Changed?.Invoke();
+        }
+    }
+
+    public void Remove(int entryId)
+    {
+        if (entries.RemoveAll(e => e.Entry.Id == entryId) > 0)
+        {
+            Changed?.Invoke();
+        }
+    }
+
     public decimal WeeklyTotalHours(DateTime referenceDate)
     {
         var (weekStart, weekEnd) = GetWeekRange(referenceDate);

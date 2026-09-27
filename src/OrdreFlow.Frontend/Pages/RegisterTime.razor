@@ -1,74 +1,170 @@
 @page "/register-time"
-@inject SelectedOrderState SelectedOrderState
+@page "/register-time/{EntryId:int}"
+@inject IWorkCasesProvider WorkCasesProvider
 @inject ITimeEntriesApiClient TimeEntriesApiClient
 @inject SavedTimeEntriesState SavedTimeEntriesState
 @inject NavigationManager Navigation
 
 <PageTitle>OrdreFlow</PageTitle>
 
-@if (order is null)
-{
-    <p>Redirecting to order selection...</p>
-}
-else
-{
-    <h1>Register time</h1>
-    <p class="order-selection-summary">
-        For: <strong>@order.Name</strong> (@order.Customer)
-    </p>
+<div class="register-card">
+    <div class="register-header">
+        <a class="back-btn" href="" aria-label="Tilbage til forsiden">
+            <span aria-hidden="true">&lsaquo;</span>
+        </a>
+        <h1>@(IsEdit ? "Rediger registrering" : "Registrer ny tid")</h1>
+    </div>
 
-    <EditForm Model="formModel" OnValidSubmit="Submit">
-        <DataAnnotationsValidator />
+    @if (workCases is null)
+    {
+        <p class="register-message">Henter sager...</p>
+    }
+    else if (IsEdit && existing is null)
+    {
+        <p class="register-message">Registreringen blev ikke fundet. <a href="">Gå til forsiden</a>.</p>
+    }
+    else
+    {
+        <EditForm Model="formModel" OnValidSubmit="Submit">
+            <DataAnnotationsValidator />
 
-        <div class="form-field">
-            <label for="date">Date</label>
-            <InputDate id="date" class="form-control form-control-lg" @bind-Value="formModel.Date" />
-            <ValidationMessage For="() => formModel.Date" />
-        </div>
+            <div class="form-field">
+                <label for="work-case">Sag</label>
+                <InputSelect id="work-case" class="form-select form-select-lg"
+                             @bind-Value="formModel.WorkCaseId" @bind-Value:after="OnWorkCaseChanged">
+                    <option value="">Vælg sag</option>
+                    @foreach (var workCase in workCases)
+                    {
+                        <option value="@workCase.Id">@workCase.Name</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="() => formModel.WorkCaseId" />
+            </div>
 
-        <div class="form-field">
-            <label for="hours">Hours worked</label>
-            <InputNumber id="hours" class="form-control form-control-lg" step="0.25"
-                         inputmode="decimal" @bind-Value="formModel.Hours" />
-            <ValidationMessage For="() => formModel.Hours" />
-        </div>
+            <div class="form-field">
+                <label for="order">Opgave</label>
+                <InputSelect id="order" class="form-select form-select-lg"
+                             disabled="@(SelectedWorkCase is null)"
+                             @bind-Value="formModel.OrderId">
+                    <option value="">@(SelectedWorkCase is null ? "Vælg først en sag" : "Vælg opgave")</option>
+                    @if (SelectedWorkCase is not null)
+                    {
+                        @foreach (var order in SelectedWorkCase.Orders)
+                        {
+                            <option value="@order.Id">@order.Name</option>
+                        }
+                    }
+                </InputSelect>
+                <ValidationMessage For="() => formModel.OrderId" />
+            </div>
 
-        <div class="form-field">
-            <label for="comment">Comment (optional)</label>
-            <InputTextArea id="comment" class="form-control" rows="3" @bind-Value="formModel.Comment" />
-            <ValidationMessage For="() => formModel.Comment" />
-        </div>
+            <div class="form-row">
+                <div class="form-field">
+                    <label for="date">Dato</label>
+                    <InputDate id="date" class="form-control form-control-lg" @bind-Value="formModel.Date" />
+                    <ValidationMessage For="() => formModel.Date" />
+                </div>
 
-        @if (submitError is not null)
-        {
-            <p class="validation-message">@submitError</p>
-        }
+                <div class="form-field">
+                    <label for="hours">Varighed (timer)</label>
+                    <InputNumber id="hours" class="form-control form-control-lg" step="0.25"
+                                 inputmode="decimal" placeholder="0,0" @bind-Value="formModel.Hours" />
+                    <ValidationMessage For="() => formModel.Hours" />
+                </div>
+            </div>
 
-        <button type="submit" class="btn btn-primary w-100" disabled="@isSubmitting">
-            @(isSubmitting ? "Saving..." : "Save time registration")
-        </button>
-    </EditForm>
-}
+            <div class="form-field">
+                <label for="comment">Kommentar (valgfri)</label>
+                <InputTextArea id="comment" class="form-control" rows="3" @bind-Value="formModel.Comment" />
+                <ValidationMessage For="() => formModel.Comment" />
+            </div>
+
+            @* Appendices are not part of this milestone (M2); the controls are shown but disabled. *@
+            <fieldset class="appendices" disabled>
+                <legend>Bilag</legend>
+                <button type="button" class="btn btn-outline-secondary w-100">+ Tilføj bilag</button>
+                <select class="form-select" aria-label="Bilag">
+                    <option>Ingen bilag</option>
+                </select>
+                <p class="appendices-hint">Bilag kommer i en senere version.</p>
+            </fieldset>
+
+            @if (submitError is not null)
+            {
+                <p class="validation-message">@submitError</p>
+            }
+
+            <button type="submit" class="btn btn-success submit-btn" disabled="@isSubmitting">
+                @(isSubmitting ? "Gemmer..." : IsEdit ? "Gem ændringer" : "Opret")
+            </button>
+        </EditForm>
+    }
+</div>
 
 @code {
-    private Order? order;
+    [Parameter]
+    public int? EntryId { get; set; }
+
+    // Lets the front page pre-fill the day that was selected there.
+    [SupplyParameterFromQuery]
+    public DateTime? Date { get; set; }
+
+    private IReadOnlyList<WorkCase>? workCases;
+    private SavedTimeEntry? existing;
     private readonly TimeRegistrationFormModel formModel = new();
     private bool isSubmitting;
     private string? submitError;
 
-    protected override void OnInitialized()
+    private bool IsEdit => EntryId is not null;
+
+    private WorkCase? SelectedWorkCase => workCases?.FirstOrDefault(w => w.Id == formModel.WorkCaseId);
+
+    protected override async Task OnInitializedAsync()
     {
-        order = SelectedOrderState.SelectedOrder;
-        if (order is null)
+        workCases = await WorkCasesProvider.GetWorkCasesAsync();
+
+        if (EntryId is int entryId)
         {
-            Navigation.NavigateTo("/");
+            existing = SavedTimeEntriesState.Find(entryId);
+            if (existing is not null)
+            {
+                formModel.WorkCaseId = existing.WorkCase.Id;
+                formModel.OrderId = existing.Order.Id;
+                formModel.Date = existing.Entry.Date;
+                formModel.Hours = existing.Entry.Hours;
+                formModel.Comment = existing.Entry.Comment;
+            }
+        }
+        else if (Date is DateTime date)
+        {
+            formModel.Date = date.Date;
         }
     }
 
+    // A new work case has different orders; pick the only one automatically if there is just one.
+    private void OnWorkCaseChanged() =>
+        formModel.OrderId = SelectedWorkCase?.Orders.Count == 1 ? SelectedWorkCase.Orders[0].Id : null;
+
     private async Task Submit()
     {
-        if (order is null || formModel.Hours is null)
+        var workCase = SelectedWorkCase;
+        var order = workCase?.Orders.FirstOrDefault(o => o.Id == formModel.OrderId);
+        if (workCase is null || order is null || formModel.Hours is null)
         {
+            return;
+        }
+
+        if (existing is not null)
+        {
+            var updatedEntry = existing.Entry with
+            {
+                WorkItemId = order.Id,
+                Date = formModel.Date,
+                Hours = formModel.Hours.Value,
+                Comment = formModel.Comment
+            };
+            SavedTimeEntriesState.Update(new SavedTimeEntry(updatedEntry, workCase, order));
+            Navigation.NavigateTo("/");
             return;
         }
 
@@ -89,8 +185,8 @@ else
 
         if (result.IsSuccess)
         {
-            SavedTimeEntriesState.Add(new SavedTimeEntry(result.Value!, order));
-            Navigation.NavigateTo("/time-entries");
+            SavedTimeEntriesState.Add(new SavedTimeEntry(result.Value!, workCase, order));
+            Navigation.NavigateTo("/");
         }
         else
         {

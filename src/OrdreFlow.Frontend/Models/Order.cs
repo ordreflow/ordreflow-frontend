@@ -1,3 +1,4 @@
 namespace OrdreFlow.Frontend.Models;
 
-public record Order(int Id, string Name, string Customer);
+// Id is the backend WorkItemId that time entries are registered against.
+public record Order(int Id, string Name);

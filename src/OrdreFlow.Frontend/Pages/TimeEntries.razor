@@ -7,7 +7,7 @@
 
 @if (SavedTimeEntriesState.Entries.Count == 0)
 {
-    <p>No time registrations yet. <a href="/">Go register some time</a>.</p>
+    <p>No time registrations yet. <a href="register-time">Go register some time</a>.</p>
 }
 else
 {
@@ -19,7 +19,7 @@ else
         @foreach (var saved in SavedTimeEntriesState.Entries.OrderByDescending(e => e.Entry.Date))
         {
             <li class="order-card">
-                <span class="order-card-name">@saved.Order.Name (@saved.Order.Customer)</span>
+                <span class="order-card-name">@saved.Order.Name (@saved.WorkCase.Name)</span>
                 <span class="order-card-customer">@saved.Entry.Date.ToString("ddd d MMM") &middot; @saved.Entry.Hours.ToString("0.##") hours</span>
                 @if (!string.IsNullOrWhiteSpace(saved.Entry.Comment))
                 {

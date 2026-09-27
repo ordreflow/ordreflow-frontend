@@ -1,57 +1,224 @@
 @page "/"
-@inject IOrdersProvider OrdersProvider
-@inject SelectedOrderState SelectedOrderState
+@using System.Globalization
+@inject SavedTimeEntriesState SavedTimeEntriesState
 @inject NavigationManager Navigation
 
 <PageTitle>OrdreFlow</PageTitle>
 
-<h1>Select an order</h1>
-<p>Choose the order or case you want to register time on.</p>
+<div class="dashboard">
+    <section class="dashboard-main">
+        <div class="greeting">
+            <h1>Hej @UserName</h1>
+            <p>Her er dit overblik for ugen.</p>
+        </div>
 
-@if (orders is null)
-{
-    <p>Loading orders...</p>
-}
-else if (orders.Count == 0)
-{
-    <p>No orders available.</p>
-}
-else
-{
-    <ul class="order-list">
-        @foreach (var order in orders)
-        {
-            <li>
-                <button type="button"
-                        class="order-card @(SelectedOrderState.SelectedOrder?.Id == order.Id ? "order-card-selected" : "")"
-                        @onclick="() => Select(order)">
-                    <span class="order-card-name">@order.Name</span>
-                    <span class="order-card-customer">@order.Customer</span>
+        <div class="week-card">
+            <div class="week-nav">
+                <button type="button" class="week-nav-btn" aria-label="Forrige uge" @onclick="() => ChangeWeek(-1)">
+                    <span aria-hidden="true">&lsaquo;</span>
                 </button>
-            </li>
-        }
-    </ul>
-}
+                <div class="week-label">
+                    <span class="week-number">Uge @ISOWeek.GetWeekOfYear(weekStart)</span>
+                    <span class="week-range">@FormatShortDate(weekStart) &ndash; @FormatShortDate(weekStart.AddDays(6))</span>
+                </div>
+                <button type="button" class="week-nav-btn" aria-label="Næste uge" @onclick="() => ChangeWeek(1)">
+                    <span aria-hidden="true">&rsaquo;</span>
+                </button>
+            </div>
 
-@if (SelectedOrderState.SelectedOrder is not null)
+            <div class="day-strip">
+                @for (var i = 0; i < 7; i++)
+                {
+                    var day = weekStart.AddDays(i);
+                    var hours = HoursOn(day);
+                    var isSelected = selectedDay == day;
+                    var isToday = day == DateTime.Today;
+
+                    <button type="button"
+                            class="day @(isSelected ? "day-selected" : "") @(isToday ? "day-today" : "")"
+                            aria-pressed="@(isSelected ? "true" : "false")"
+                            aria-label="@DayNames[i] @FormatShortDate(day)"
+                            @onclick="() => ToggleDay(day)">
+                        <span class="day-date">@FormatShortDate(day)</span>
+                        <span class="day-letter">@DayNames[i][0]</span>
+                        <span class="day-marker">
+                            @if (hours > 0)
+                            {
+                                <span class="day-dot" aria-hidden="true"></span>
+                                <span class="day-hours">@FormatHours(hours) t</span>
+                            }
+                        </span>
+                    </button>
+                }
+            </div>
+
+            @if (selectedDay is DateTime selected)
+            {
+                var entries = EntriesOn(selected);
+
+                <div class="day-panel">
+                    <h2 class="day-panel-title">
+                        @DayNames[DayIndex(selected)] @FormatShortDate(selected)
+                        <span class="day-panel-total">@FormatHours(HoursOn(selected)) timer</span>
+                    </h2>
+
+                    @if (entries.Count == 0)
+                    {
+                        <p class="day-panel-empty">Ingen registreringer denne dag.</p>
+                    }
+                    else
+                    {
+                        <ul class="entry-list">
+                            @foreach (var saved in entries)
+                            {
+                                <li class="entry">
+                                    <div class="entry-row">
+                                        <div class="entry-col">
+                                            <span class="entry-label">Sag</span>
+                                            <span class="entry-value">@saved.WorkCase.Name</span>
+                                        </div>
+                                        <div class="entry-col">
+                                            <span class="entry-label">Opgave</span>
+                                            <span class="entry-value">@saved.Order.Name</span>
+                                        </div>
+                                        <span class="entry-hours">@FormatHours(saved.Entry.Hours) t</span>
+                                        <button type="button"
+                                                class="entry-details-btn"
+                                                @onclick="() => OpenDetails(saved)">
+                                            Detaljer
+                                        </button>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+
+    <aside class="dashboard-side">
+        <div class="total-card">
+            <span class="total-label">Total denne uge</span>
+            <span class="total-value">@FormatHours(WeekTotal) <small>timer</small></span>
+        </div>
+
+        <div class="register-bar">
+            <button type="button" class="btn btn-primary register-btn" @onclick="RegisterNewTime">
+                Registrer ny tid
+            </button>
+        </div>
+    </aside>
+</div>
+
+@if (detailsEntry is not null)
 {
-    <p class="order-selection-summary">
-        Selected: <strong>@SelectedOrderState.SelectedOrder.Name</strong>
-    </p>
-    <button type="button" class="btn btn-primary w-100" @onclick="ContinueToRegisterTime">
-        Continue
-    </button>
+    <div class="details-backdrop" @onclick="CloseDetails"></div>
+
+    <div class="details-dialog" role="dialog" aria-modal="true" aria-labelledby="details-title">
+        <div class="details-header">
+            <button type="button" class="details-close" aria-label="Luk" @onclick="CloseDetails">
+                <span aria-hidden="true">&lsaquo;</span>
+            </button>
+            <h2 id="details-title">Detaljer</h2>
+        </div>
+
+        <dl class="details-list">
+            <dt>Sag</dt>
+            <dd>@detailsEntry.WorkCase.Name</dd>
+            <dt>Opgave</dt>
+            <dd>@detailsEntry.Order.Name</dd>
+            <dt>Dato</dt>
+            <dd>@DayNames[DayIndex(detailsEntry.Entry.Date)] @FormatShortDate(detailsEntry.Entry.Date)</dd>
+            <dt>Varighed</dt>
+            <dd>@FormatHours(detailsEntry.Entry.Hours) timer</dd>
+            @if (!string.IsNullOrWhiteSpace(detailsEntry.Entry.Comment))
+            {
+                <dt>Kommentar</dt>
+                <dd>@detailsEntry.Entry.Comment</dd>
+            }
+        </dl>
+
+        @* Appendices are not part of this milestone (M2). *@
+        <button type="button" class="btn btn-outline-secondary w-100" disabled>Bilag</button>
+        <p class="details-hint">Bilag kommer i en senere version.</p>
+
+        <div class="details-actions">
+            <button type="button" class="btn btn-outline-primary" @onclick="EditDetails">Rediger</button>
+            <button type="button" class="btn btn-danger" @onclick="DeleteDetails">
+                @(confirmDelete ? "Bekræft sletning" : "Slet")
+            </button>
+        </div>
+    </div>
 }
 
 @code {
-    private IReadOnlyList<Order>? orders;
+    // No login yet, so there is no real user name. Replace with the authenticated user once auth exists.
+    private const string UserName = "Baris";
 
-    protected override async Task OnInitializedAsync()
+    private static readonly string[] DayNames =
+        ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"];
+
+    private DateTime weekStart = StartOfWeek(DateTime.Today);
+    private DateTime? selectedDay;
+    private SavedTimeEntry? detailsEntry;
+    private bool confirmDelete;
+
+    private decimal WeekTotal => SavedTimeEntriesState.WeeklyTotalHours(weekStart);
+
+    private void ChangeWeek(int weeks)
     {
-        orders = await OrdersProvider.GetOrdersAsync();
+        weekStart = weekStart.AddDays(7 * weeks);
+        selectedDay = null;
     }
 
-    private void Select(Order order) => SelectedOrderState.Select(order);
+    private void ToggleDay(DateTime day) => selectedDay = selectedDay == day ? null : day;
 
-    private void ContinueToRegisterTime() => Navigation.NavigateTo("/register-time");
+    private void OpenDetails(SavedTimeEntry entry)
+    {
+        detailsEntry = entry;
+        confirmDelete = false;
+    }
+
+    private void CloseDetails()
+    {
+        detailsEntry = null;
+        confirmDelete = false;
+    }
+
+    private void EditDetails() => Navigation.NavigateTo($"/register-time/{detailsEntry!.Entry.Id}");
+
+    // First click asks for confirmation, second click deletes.
+    private void DeleteDetails()
+    {
+        if (!confirmDelete)
+        {
+            confirmDelete = true;
+            return;
+        }
+
+        SavedTimeEntriesState.Remove(detailsEntry!.Entry.Id);
+        CloseDetails();
+    }
+
+    private List<SavedTimeEntry> EntriesOn(DateTime day) =>
+        SavedTimeEntriesState.Entries.Where(e => e.Entry.Date.Date == day).ToList();
+
+    private decimal HoursOn(DateTime day) =>
+        SavedTimeEntriesState.Entries.Where(e => e.Entry.Date.Date == day).Sum(e => e.Entry.Hours);
+
+    private void RegisterNewTime() =>
+        Navigation.NavigateTo(selectedDay is DateTime day
+            ? $"/register-time?date={day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}"
+            : "/register-time");
+
+    private static int DayIndex(DateTime date) => ((int)date.DayOfWeek + 6) % 7;
+
+    private static DateTime StartOfWeek(DateTime date) => date.Date.AddDays(-DayIndex(date));
+
+    private static string FormatShortDate(DateTime date) => $"{date.Day}/{date.Month}";
+
+    // Danish decimal comma without depending on da-DK culture data being loaded in WebAssembly.
+    private static string FormatHours(decimal hours) =>
+        hours.ToString("0.##", CultureInfo.InvariantCulture).Replace('.', ',');
 }
