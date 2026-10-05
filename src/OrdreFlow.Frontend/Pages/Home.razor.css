@@ -1,0 +1,397 @@
+.dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.dashboard-main,
+.dashboard-side {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+}
+
+/* Greeting */
+
+.greeting h1 {
+    font-size: 1.9rem;
+    font-weight: 700;
+    margin: 0.5rem 0 0.25rem;
+    color: var(--of-text);
+}
+
+.greeting p {
+    margin: 0;
+    color: var(--of-muted);
+}
+
+/* Week card */
+
+.week-card {
+    background: var(--of-surface);
+    border: 1px solid var(--of-border);
+    border-radius: var(--of-radius);
+    box-shadow: var(--of-shadow);
+    overflow: hidden;
+}
+
+.week-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0.75rem 0.5rem;
+}
+
+.week-nav-btn {
+    width: 2.5rem;
+    height: 2.5rem;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--of-text);
+    font-size: 1.6rem;
+    line-height: 1;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+    .week-nav-btn:hover {
+        background: var(--of-primary-soft);
+        color: var(--of-primary);
+    }
+
+.week-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.week-number {
+    font-weight: 600;
+}
+
+.week-range {
+    font-size: 0.8rem;
+    color: var(--of-muted);
+}
+
+/* Day strip */
+
+.day-strip {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.25rem;
+    padding: 0 0.5rem 0.75rem;
+}
+
+.day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    padding: 0.5rem 0 0.4rem;
+    min-width: 0;
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+    background: var(--of-bg);
+    color: var(--of-text);
+    font: inherit;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+    .day:hover {
+        border-color: var(--of-primary);
+    }
+
+.day-today {
+    border-color: var(--of-primary);
+}
+
+.day-selected,
+.day-selected:hover {
+    background: var(--of-primary);
+    border-color: var(--of-primary);
+    color: #fff;
+}
+
+.day-date {
+    font-size: 0.7rem;
+    opacity: 0.75;
+}
+
+.day-letter {
+    font-size: 1.3rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.day-marker {
+    height: 0.9rem;
+    display: flex;
+    align-items: center;
+}
+
+.day-dot {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    background: var(--of-primary);
+}
+
+.day-selected .day-dot {
+    background: #fff;
+}
+
+.day-hours {
+    display: none;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Selected day panel */
+
+.day-panel {
+    border-top: 1px solid var(--of-border);
+    background: #fafbfd;
+    padding: 1rem;
+}
+
+.day-panel-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 0.75rem;
+}
+
+.day-panel-total {
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: var(--of-muted);
+}
+
+.day-panel-empty {
+    margin: 0;
+    color: var(--of-muted);
+    font-size: 0.9rem;
+}
+
+.entry-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 18rem;
+    overflow-y: auto;
+}
+
+.entry {
+    background: var(--of-surface);
+    border: 1px solid var(--of-border);
+    border-radius: 0.6rem;
+    padding: 0.6rem 0.75rem;
+}
+
+.entry-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    grid-template-areas:
+        "order customer details"
+        "hours hours details";
+    align-items: center;
+    column-gap: 0.75rem;
+}
+
+    .entry-row > .entry-col:nth-child(1) { grid-area: order; }
+    .entry-row > .entry-col:nth-child(2) { grid-area: customer; }
+
+.entry-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.entry-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--of-muted);
+}
+
+.entry-value {
+    font-size: 0.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.entry-hours {
+    grid-area: hours;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--of-primary);
+    margin-top: 0.2rem;
+}
+
+.entry-details-btn {
+    grid-area: details;
+    border: 1px solid var(--of-border);
+    border-radius: 0.5rem;
+    background: var(--of-bg);
+    color: var(--of-text);
+    font-size: 0.8rem;
+    padding: 0.45rem 0.7rem;
+    cursor: pointer;
+}
+
+    .entry-details-btn:hover,
+    .entry-details-btn[aria-expanded="true"] {
+        background: var(--of-primary-soft);
+        border-color: var(--of-primary);
+        color: var(--of-primary);
+    }
+
+.entry-details {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem 0.75rem;
+    margin: 0.6rem 0 0;
+    padding-top: 0.6rem;
+    border-top: 1px dashed var(--of-border);
+    font-size: 0.85rem;
+}
+
+    .entry-details dt {
+        font-weight: 600;
+        color: var(--of-muted);
+    }
+
+    .entry-details dd {
+        margin: 0;
+    }
+
+/* Weekly total + register button */
+
+.total-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 1.5rem 1rem;
+    background: var(--of-surface);
+    border: 1px solid var(--of-border);
+    border-radius: var(--of-radius);
+    box-shadow: var(--of-shadow);
+}
+
+.total-label {
+    color: var(--of-muted);
+    font-size: 0.95rem;
+}
+
+.total-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--of-text);
+}
+
+    .total-value small {
+        font-size: 1rem;
+        font-weight: 500;
+        color: var(--of-muted);
+    }
+
+.register-bar {
+    position: sticky;
+    bottom: 0;
+    padding: 0.75rem 0 1rem;
+    background: linear-gradient(to top, var(--of-bg) 70%, transparent);
+}
+
+.register-btn {
+    width: 100%;
+    min-height: 3.5rem;
+    font-size: 1.15rem;
+    font-weight: 600;
+    border-radius: var(--of-radius);
+    box-shadow: 0 6px 16px rgba(27, 110, 194, 0.3);
+}
+
+/* Desktop: week on the left, total and action on the right */
+
+@media (min-width: 900px) {
+    .dashboard {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 18rem;
+        align-items: start;
+        gap: 1.5rem;
+    }
+
+    .dashboard-side {
+        position: sticky;
+        top: 5.5rem;
+        margin-top: 5.25rem;
+    }
+
+    .greeting h1 {
+        font-size: 2.25rem;
+    }
+
+    .day-strip {
+        gap: 0.5rem;
+        padding: 0 1rem 1rem;
+    }
+
+    .day {
+        padding: 0.75rem 0 0.6rem;
+    }
+
+    .day-letter {
+        font-size: 1.5rem;
+    }
+
+    .day-marker {
+        height: 1.1rem;
+    }
+
+    /* Wide enough to show the actual hours instead of just a dot */
+    .day-dot {
+        display: none;
+    }
+
+    .day-hours {
+        display: inline;
+    }
+
+    .day-panel {
+        padding: 1.25rem 1.5rem;
+    }
+
+    .entry-list {
+        max-height: none;
+    }
+
+    .entry-row {
+        grid-template-columns: 1fr 1fr auto auto;
+        grid-template-areas: "order customer hours details";
+    }
+
+    .entry-hours {
+        margin-top: 0;
+        font-size: 0.9rem;
+    }
+
+    .register-bar {
+        position: static;
+        padding: 0;
+        background: none;
+    }
+}
