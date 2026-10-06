@@ -1,3 +1,3 @@
 namespace OrdreFlow.Frontend.Models;
 
-public record SavedTimeEntry(TimeEntry Entry, Order Order);
+public record SavedTimeEntry(TimeEntry Entry, WorkCase WorkCase, Order Order);

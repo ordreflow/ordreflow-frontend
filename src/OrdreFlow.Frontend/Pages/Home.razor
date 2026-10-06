@@ -71,36 +71,23 @@
                         <ul class="entry-list">
                             @foreach (var saved in entries)
                             {
-                                var isExpanded = expandedEntryIds.Contains(saved.Entry.Id);
-
                                 <li class="entry">
                                     <div class="entry-row">
+                                        <div class="entry-col">
+                                            <span class="entry-label">Sag</span>
+                                            <span class="entry-value">@saved.WorkCase.Name</span>
+                                        </div>
                                         <div class="entry-col">
                                             <span class="entry-label">Opgave</span>
                                             <span class="entry-value">@saved.Order.Name</span>
                                         </div>
-                                        <div class="entry-col">
-                                            <span class="entry-label">Kunde</span>
-                                            <span class="entry-value">@saved.Order.Customer</span>
-                                        </div>
                                         <span class="entry-hours">@FormatHours(saved.Entry.Hours) t</span>
                                         <button type="button"
                                                 class="entry-details-btn"
-                                                aria-expanded="@(isExpanded ? "true" : "false")"
-                                                @onclick="() => ToggleDetails(saved.Entry.Id)">
+                                                @onclick="() => OpenDetails(saved)">
                                             Detaljer
                                         </button>
                                     </div>
-
-                                    @if (isExpanded)
-                                    {
-                                        <dl class="entry-details">
-                                            <dt>Timer</dt>
-                                            <dd>@FormatHours(saved.Entry.Hours)</dd>
-                                            <dt>Kommentar</dt>
-                                            <dd>@(string.IsNullOrWhiteSpace(saved.Entry.Comment) ? "Ingen kommentar" : saved.Entry.Comment)</dd>
-                                        </dl>
-                                    }
                                 </li>
                             }
                         </ul>
@@ -124,6 +111,47 @@
     </aside>
 </div>
 
+@if (detailsEntry is not null)
+{
+    <div class="details-backdrop" @onclick="CloseDetails"></div>
+
+    <div class="details-dialog" role="dialog" aria-modal="true" aria-labelledby="details-title">
+        <div class="details-header">
+            <button type="button" class="details-close" aria-label="Luk" @onclick="CloseDetails">
+                <span aria-hidden="true">&lsaquo;</span>
+            </button>
+            <h2 id="details-title">Detaljer</h2>
+        </div>
+
+        <dl class="details-list">
+            <dt>Sag</dt>
+            <dd>@detailsEntry.WorkCase.Name</dd>
+            <dt>Opgave</dt>
+            <dd>@detailsEntry.Order.Name</dd>
+            <dt>Dato</dt>
+            <dd>@DayNames[DayIndex(detailsEntry.Entry.Date)] @FormatShortDate(detailsEntry.Entry.Date)</dd>
+            <dt>Varighed</dt>
+            <dd>@FormatHours(detailsEntry.Entry.Hours) timer</dd>
+            @if (!string.IsNullOrWhiteSpace(detailsEntry.Entry.Comment))
+            {
+                <dt>Kommentar</dt>
+                <dd>@detailsEntry.Entry.Comment</dd>
+            }
+        </dl>
+
+        @* Appendices are not part of this milestone (M2). *@
+        <button type="button" class="btn btn-outline-secondary w-100" disabled>Bilag</button>
+        <p class="details-hint">Bilag kommer i en senere version.</p>
+
+        <div class="details-actions">
+            <button type="button" class="btn btn-outline-primary" @onclick="EditDetails">Rediger</button>
+            <button type="button" class="btn btn-danger" @onclick="DeleteDetails">
+                @(confirmDelete ? "Bekræft sletning" : "Slet")
+            </button>
+        </div>
+    </div>
+}
+
 @code {
     // No login yet, so there is no real user name. Replace with the authenticated user once auth exists.
     private const string UserName = "Baris";
@@ -133,7 +161,8 @@
 
     private DateTime weekStart = StartOfWeek(DateTime.Today);
     private DateTime? selectedDay;
-    private readonly HashSet<int> expandedEntryIds = [];
+    private SavedTimeEntry? detailsEntry;
+    private bool confirmDelete;
 
     private decimal WeekTotal => SavedTimeEntriesState.WeeklyTotalHours(weekStart);
 
@@ -145,12 +174,31 @@
 
     private void ToggleDay(DateTime day) => selectedDay = selectedDay == day ? null : day;
 
-    private void ToggleDetails(int entryId)
+    private void OpenDetails(SavedTimeEntry entry)
     {
-        if (!expandedEntryIds.Remove(entryId))
+        detailsEntry = entry;
+        confirmDelete = false;
+    }
+
+    private void CloseDetails()
+    {
+        detailsEntry = null;
+        confirmDelete = false;
+    }
+
+    private void EditDetails() => Navigation.NavigateTo($"/register-time/{detailsEntry!.Entry.Id}");
+
+    // First click asks for confirmation, second click deletes.
+    private void DeleteDetails()
+    {
+        if (!confirmDelete)
         {
-            expandedEntryIds.Add(entryId);
+            confirmDelete = true;
+            return;
         }
+
+        SavedTimeEntriesState.Remove(detailsEntry!.Entry.Id);
+        CloseDetails();
     }
 
     private List<SavedTimeEntry> EntriesOn(DateTime day) =>
@@ -159,7 +207,10 @@
     private decimal HoursOn(DateTime day) =>
         SavedTimeEntriesState.Entries.Where(e => e.Entry.Date.Date == day).Sum(e => e.Entry.Hours);
 
-    private void RegisterNewTime() => Navigation.NavigateTo("/select-order");
+    private void RegisterNewTime() =>
+        Navigation.NavigateTo(selectedDay is DateTime day
+            ? $"/register-time?date={day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}"
+            : "/register-time");
 
     private static int DayIndex(DateTime date) => ((int)date.DayOfWeek + 6) % 7;
 
