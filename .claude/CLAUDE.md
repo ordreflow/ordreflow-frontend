@@ -13,7 +13,7 @@ OrdreFlow frontend repository.
 ## Project Context
 
 - The application is a mobile-first Blazor WebAssembly frontend for OrdreFlow.
-- The project targets .NET `8.0` and uses the exact SDK version `8.0.130`.
+- The project targets .NET `8.0` and uses the exact SDK version `8.0.424`.
 - The main project is `src/OrdreFlow.Frontend/` and the solution is `OrdreFlow.Frontend.sln`.
 - The frontend communicates with the backend through HTTP/JSON. It must not connect directly to PostgreSQL or use Entity Framework Core.
 - API URLs and other environment-specific values belong in the appropriate application configuration, not in committed secrets.
@@ -29,7 +29,7 @@ OrdreFlow frontend repository.
   flox activate -d . -c 'dotnet restore && dotnet build --no-restore'
   ```
 
-- The version check should report `8.0.130`.
+- The version check should report `8.0.424`.
 - The frontend Flox environment intentionally contains only the .NET SDK. Git, Node.js, PostgreSQL, Docker, and Entity Framework Core tools are not provided by it.
 - Do not run `flox install`, update `.flox/env/manifest.toml`, or update `.flox/env/manifest.lock` unless the user explicitly requests a development-environment change. When changing the environment, keep the manifest and lock file in sync.
 

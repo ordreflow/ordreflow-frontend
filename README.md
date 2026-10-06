@@ -65,7 +65,7 @@ The Blazor WebAssembly project has been scaffolded. API configuration and test c
 ```
 
 - `OrdreFlow.Frontend.sln`: solution file used by the .NET CLI and IDEs.
-- `global.json`: pins the repository to .NET SDK `8.0.130`.
+- `global.json`: pins the repository to .NET SDK `8.0.424`.
 - `.flox/env/manifest.toml`: declares the development environment packages.
 - `.flox/env/manifest.lock`: locks the resolved Flox package versions.
 - `GIT_BRANCHING.md`: repository-specific branch and pull-request rules.
@@ -97,7 +97,7 @@ The frontend communicates with the backend through HTTP/JSON only. It does not c
 
 Install [Flox](https://flox.dev/docs/install-flox/install/) before setting up the
 repository. The committed Flox environment provides the exact .NET SDK version
-required by this project: `8.0.130`. The root `global.json` keeps the .NET CLI
+required by this project: `8.0.424`. The root `global.json` keeps the .NET CLI
 on that SDK version.
 
 From the repository root, activate the environment:
@@ -114,7 +114,7 @@ dotnet restore
 dotnet run --project src/OrdreFlow.Frontend
 ```
 
-The version check should print `8.0.130`. The app is served at the URL printed
+The version check should print `8.0.424`. The app is served at the URL printed
 in the console (see `src/OrdreFlow.Frontend/Properties/launchSettings.json`).
 
 For a single command without opening an interactive shell:

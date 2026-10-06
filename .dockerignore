@@ -1,0 +1,13 @@
+.git/
+.github/
+.claude/
+.opencode/
+.flox/
+**/bin/
+**/obj/
+**/publish/
+artifacts/
+.env
+.env.*
+src/OrdreFlow.Frontend/wwwroot/appsettings.Development.json
+*.deb
