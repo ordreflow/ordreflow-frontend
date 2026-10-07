@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Local API endpoint for the Blazor development server
+src/OrdreFlow.Frontend/wwwroot/appsettings.Development.json
+
 # User-specific files
 *.rsuser
 *.suo

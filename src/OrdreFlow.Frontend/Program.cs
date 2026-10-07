@@ -9,10 +9,11 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 var apiBaseUrl = builder.Configuration["ApiBaseUrl"]
     ?? throw new InvalidOperationException("ApiBaseUrl is not configured.");
+var apiBaseAddress = new Uri(new Uri(builder.HostEnvironment.BaseAddress), apiBaseUrl);
 
 builder.Services.AddScoped(sp => new HttpClient
 {
-    BaseAddress = new Uri(apiBaseUrl),
+    BaseAddress = apiBaseAddress,
     // Fail fast with a clear message instead of hanging on "Saving..." when the API is unreachable.
     Timeout = TimeSpan.FromSeconds(15)
 });
