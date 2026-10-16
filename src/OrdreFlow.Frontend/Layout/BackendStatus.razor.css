@@ -1,0 +1,22 @@
+.backend-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--of-muted);
+    font-size: 0.85rem;
+}
+
+.status-dot {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    background: var(--of-muted);
+}
+
+.backend-status.online .status-dot {
+    background: #16803c;
+}
+
+.backend-status.offline .status-dot {
+    background: #b42318;
+}

@@ -25,8 +25,23 @@ main {
     padding: 1.25rem 1rem 0;
 }
 
+.app-footer {
+    background: var(--of-surface);
+    border-top: 1px solid var(--of-border);
+}
+
+.footer-inner {
+    max-width: 68rem;
+    margin: 0 auto;
+    padding: 0.75rem 1rem;
+}
+
 @media (min-width: 900px) {
     .content {
         padding: 2rem 2rem 2rem;
+    }
+
+    .footer-inner {
+        padding: 0.75rem 2rem;
     }
 }

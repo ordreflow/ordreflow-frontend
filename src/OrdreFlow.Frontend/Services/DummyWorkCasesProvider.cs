@@ -3,7 +3,7 @@ using OrdreFlow.Frontend.Models;
 namespace OrdreFlow.Frontend.Services;
 
 // Backend has no work cases/work-items endpoint yet, so this stands in until it does.
-// Order ids match the WorkItemIds used before, so creating time entries still works against the API.
+// Order ids match the task IDs used by the API, so time entries can be created.
 // Swap this registration for a real API-backed IWorkCasesProvider once that endpoint exists.
 public class DummyWorkCasesProvider : IWorkCasesProvider
 {

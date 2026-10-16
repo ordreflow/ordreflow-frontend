@@ -18,6 +18,7 @@ builder.Services.AddScoped(sp => new HttpClient
     Timeout = TimeSpan.FromSeconds(15)
 });
 builder.Services.AddScoped<ITimeEntriesApiClient, TimeEntriesApiClient>();
+builder.Services.AddScoped<BackendHealthClient>();
 builder.Services.AddScoped<IWorkCasesProvider, DummyWorkCasesProvider>();
 builder.Services.AddScoped<SavedTimeEntriesState>();
 

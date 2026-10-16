@@ -93,6 +93,8 @@ The current proof-of-concept flow is intentionally small:
 
 The frontend communicates with the backend through HTTP/JSON only. It does not connect directly to PostgreSQL, use Entity Framework Core, or replace business and security rules that belong in the API. Orders and saved-entry history will move to backend-backed services when the corresponding API endpoints are available.
 
+The shared footer checks `GET api/health` on load and every 30 seconds while the app is open. It displays the backend as available only for a successful response containing `{"status":"ok"}`. The check uses the configured `ApiBaseUrl` (and the existing `/api/` proxy in the Docker image).
+
 ## Running Locally
 
 Install [Flox](https://flox.dev/docs/install-flox/install/) before setting up the

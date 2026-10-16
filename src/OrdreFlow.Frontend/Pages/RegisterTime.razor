@@ -158,7 +158,7 @@
         {
             var updatedEntry = existing.Entry with
             {
-                WorkItemId = order.Id,
+                TaskId = order.Id,
                 Date = formModel.Date,
                 Hours = formModel.Hours.Value,
                 Comment = formModel.Comment
@@ -175,8 +175,6 @@
             order.Id,
             formModel.Date,
             formModel.Hours.Value,
-            null,
-            null,
             formModel.Comment);
 
         var result = await TimeEntriesApiClient.CreateAsync(request);

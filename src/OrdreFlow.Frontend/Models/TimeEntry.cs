@@ -1,18 +1,14 @@
 namespace OrdreFlow.Frontend.Models;
 
 public record CreateTimeEntryRequest(
-    int WorkItemId,
+    int TaskId,
     DateTime Date,
     decimal Hours,
-    TimeSpan? StartTime,
-    TimeSpan? EndTime,
     string? Comment);
 
 public record TimeEntry(
     int Id,
-    int WorkItemId,
+    int TaskId,
     DateTime Date,
     decimal Hours,
-    TimeSpan? StartTime,
-    TimeSpan? EndTime,
     string? Comment);

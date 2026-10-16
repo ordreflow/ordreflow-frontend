@@ -1,0 +1,73 @@
+@implements IAsyncDisposable
+@inject BackendHealthClient BackendHealthClient
+
+<div class="backend-status @StatusClass" role="status">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span>@StatusText</span>
+</div>
+
+@code {
+    private readonly CancellationTokenSource stopping = new();
+    private Task? pollingTask;
+    private bool? isHealthy;
+
+    private string StatusClass => isHealthy switch
+    {
+        true => "online",
+        false => "offline",
+        _ => "checking"
+    };
+
+    private string StatusText => isHealthy switch
+    {
+        true => "Backend tilgængelig",
+        false => "Backend utilgængelig",
+        _ => "Kontrollerer backend..."
+    };
+
+    protected override void OnInitialized()
+    {
+        pollingTask = PollAsync(stopping.Token);
+    }
+
+    private async Task PollAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await UpdateStatusAsync(cancellationToken);
+
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await UpdateStatusAsync(cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The layout was removed; stop polling.
+        }
+    }
+
+    private async Task UpdateStatusAsync(CancellationToken cancellationToken)
+    {
+        var healthy = await BackendHealthClient.IsHealthyAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (isHealthy != healthy)
+        {
+            isHealthy = healthy;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        stopping.Cancel();
+        if (pollingTask is not null)
+        {
+            await pollingTask;
+        }
+
+        stopping.Dispose();
+    }
+}
