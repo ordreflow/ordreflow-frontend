@@ -39,7 +39,7 @@ describes the Flox and WSL conventions.
 
 ## Current Status
 
-The Blazor WebAssembly project has been scaffolded. API configuration and test commands will be added as the POC flow is implemented.
+The Blazor WebAssembly frontend loads orders, tasks, user details, and time registrations from the backend API. The backend supplies the current user's identity; during Development it can use its `DEV_USER_ID` setting until login is implemented.
 
 ## Project Structure
 
@@ -73,25 +73,25 @@ The Blazor WebAssembly project has been scaffolded. API configuration and test c
 - `src/OrdreFlow.Frontend/App.razor`: configures client-side routing and the default layout.
 - `src/OrdreFlow.Frontend/Program.cs`: starts the WebAssembly host, reads `ApiBaseUrl`, and registers HTTP clients and application services.
 - `src/OrdreFlow.Frontend/Pages/`: contains the route-level screens.
-- `src/OrdreFlow.Frontend/Pages/Home.razor`: displays available orders and stores the selected order.
+- `src/OrdreFlow.Frontend/Pages/Home.razor`: displays the authenticated user's weekly entries and total.
 - `src/OrdreFlow.Frontend/Pages/RegisterTime.razor`: validates and submits a time registration.
 - `src/OrdreFlow.Frontend/Pages/TimeEntries.razor`: displays successfully submitted entries and the current week's total.
 - `src/OrdreFlow.Frontend/Layout/`: contains shared application chrome, including the main layout and navigation menu.
 - `src/OrdreFlow.Frontend/Models/`: contains domain, form, and API request/response models.
-- `src/OrdreFlow.Frontend/Services/`: contains API clients, provider abstractions, and scoped client-side state. `DummyOrdersProvider` currently supplies sample orders, while `SavedTimeEntriesState` retains successful entries for the current browser session.
+- `src/OrdreFlow.Frontend/Services/`: contains HTTP clients for orders, tasks, time entries, user details, and backend health.
 - `src/OrdreFlow.Frontend/wwwroot/`: contains static assets, CSS, Bootstrap, and runtime configuration such as `appsettings.json`.
 - `src/OrdreFlow.Frontend/Properties/launchSettings.json`: contains local launch profiles and development URLs.
 
 ## Application Flow
 
-The current proof-of-concept flow is intentionally small:
+The current time-registration flow is:
 
-1. `Home.razor` loads sample orders through `IOrdersProvider` and records the user's selection in `SelectedOrderState`.
-2. `RegisterTime.razor` reads the selected order, validates the form with data annotations, and sends a `POST` request to `api/time_entries` through `TimeEntriesApiClient`.
-3. The API response is converted into a typed result. Successes are added to `SavedTimeEntriesState`; failures are shown in the form.
-4. `TimeEntries.razor` reads the entries saved during the current session and calculates the Monday-to-Sunday weekly total.
+1. `Home.razor` loads the user's name from `GET api/users/me` and the selected week's entries from `GET api/time_entries?FromDate=...&ToDate=...`.
+2. `RegisterTime.razor` loads orders and their tasks from the API, validates the form, and sends `POST api/time_entries` with the selected task UUID. The backend returns `204 No Content` on success.
+3. Editing and deleting saved entries use the backend's `GET`, `PUT`, and `DELETE api/time_entries/{id}` routes. After a successful write the pages fetch the saved entries again.
+4. `TimeEntries.razor` loads the selected week's saved entries from the API and calculates the weekly total from that response.
 
-The frontend communicates with the backend through HTTP/JSON only. It does not connect directly to PostgreSQL, use Entity Framework Core, or replace business and security rules that belong in the API. Orders and saved-entry history will move to backend-backed services when the corresponding API endpoints are available.
+The frontend communicates with the backend through HTTP/JSON only. It does not connect directly to PostgreSQL, use Entity Framework Core, or replace business and security rules that belong in the API. Frontend models mirror the backend's request and response contracts; review-specific requests live in `Models/TimeEntryReview.cs`.
 
 The shared footer checks `GET api/health` on load and every 30 seconds while the app is open. It displays the backend as available only for a successful response containing `{"status":"ok"}`. The check uses the configured `ApiBaseUrl` (and the existing `/api/` proxy in the Docker image).
 
@@ -118,6 +118,14 @@ dotnet run --project src/OrdreFlow.Frontend
 
 The version check should print `8.0.424`. The app is served at the URL printed
 in the console (see `src/OrdreFlow.Frontend/Properties/launchSettings.json`).
+
+For integrated testing with the Docker image, set the frontend container's
+`API_UPSTREAM` to the backend's internal URL (for example, `http://api:8080`).
+The default `ApiBaseUrl` of `/` then sends `/api/` requests through Nginx to
+the backend. When running only `dotnet run`, the development server does not
+proxy `/api/`; run the app behind the Docker proxy to exercise the API without
+cross-origin configuration. In Development the backend can use `DEV_USER_ID`
+for its current user until login is available.
 
 For a single command without opening an interactive shell:
 

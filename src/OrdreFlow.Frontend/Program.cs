@@ -19,7 +19,8 @@ builder.Services.AddScoped(sp => new HttpClient
 });
 builder.Services.AddScoped<ITimeEntriesApiClient, TimeEntriesApiClient>();
 builder.Services.AddScoped<BackendHealthClient>();
-builder.Services.AddScoped<IWorkCasesProvider, DummyWorkCasesProvider>();
-builder.Services.AddScoped<SavedTimeEntriesState>();
+builder.Services.AddScoped<OrdersApiClient>();
+builder.Services.AddScoped<TasksApiClient>();
+builder.Services.AddScoped<UsersApiClient>();
 
 await builder.Build().RunAsync();

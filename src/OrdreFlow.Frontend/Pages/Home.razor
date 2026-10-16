@@ -1,6 +1,9 @@
 @page "/"
 @using System.Globalization
-@inject SavedTimeEntriesState SavedTimeEntriesState
+@inject ITimeEntriesApiClient TimeEntriesApiClient
+@inject OrdersApiClient OrdersApiClient
+@inject TasksApiClient TasksApiClient
+@inject UsersApiClient UsersApiClient
 @inject NavigationManager Navigation
 
 <PageTitle>OrdreFlow</PageTitle>
@@ -8,8 +11,13 @@
 <div class="dashboard">
     <section class="dashboard-main">
         <div class="greeting">
-            <h1>Hej @UserName</h1>
+            <h1>Hej@(string.IsNullOrWhiteSpace(userName) ? "" : $" {userName}")</h1>
             <p>Her er dit overblik for ugen.</p>
+            @if (catalogError is not null)
+            {
+                <p class="validation-message" role="alert">@catalogError</p>
+                <button type="button" class="btn btn-outline-primary mt-2" @onclick="LoadCatalogAsync">Prøv igen</button>
+            }
         </div>
 
         <div class="week-card">
@@ -26,81 +34,93 @@
                 </button>
             </div>
 
-            <div class="day-strip">
-                @for (var i = 0; i < 7; i++)
-                {
-                    var day = weekStart.AddDays(i);
-                    var hours = HoursOn(day);
-                    var isSelected = selectedDay == day;
-                    var isToday = day == DateTime.Today;
-
-                    <button type="button"
-                            class="day @(isSelected ? "day-selected" : "") @(isToday ? "day-today" : "")"
-                            aria-pressed="@(isSelected ? "true" : "false")"
-                            aria-label="@DayNames[i] @FormatShortDate(day)"
-                            @onclick="() => ToggleDay(day)">
-                        <span class="day-date">@FormatShortDate(day)</span>
-                        <span class="day-letter">@DayNames[i][0]</span>
-                        <span class="day-marker">
-                            @if (hours > 0)
-                            {
-                                <span class="day-dot" aria-hidden="true"></span>
-                                <span class="day-hours">@FormatHours(hours) t</span>
-                            }
-                        </span>
-                    </button>
-                }
-            </div>
-
-            @if (selectedDay is DateTime selected)
+            @if (isLoading)
             {
-                var entries = EntriesOn(selected);
-
-                <div class="day-panel">
-                    <h2 class="day-panel-title">
-                        @DayNames[DayIndex(selected)] @FormatShortDate(selected)
-                        <span class="day-panel-total">@FormatHours(HoursOn(selected)) timer</span>
-                    </h2>
-
-                    @if (entries.Count == 0)
+                <p class="day-panel-empty p-3">Henter registreringer...</p>
+            }
+            else if (loadError is not null)
+            {
+                <p class="validation-message p-3" role="alert">@loadError</p>
+                <button type="button" class="btn btn-outline-primary m-3" @onclick="LoadWeekAsync">Prøv igen</button>
+            }
+            else
+            {
+                <div class="day-strip">
+                    @for (var i = 0; i < 7; i++)
                     {
-                        <p class="day-panel-empty">Ingen registreringer denne dag.</p>
-                    }
-                    else
-                    {
-                        <ul class="entry-list">
-                            @foreach (var saved in entries)
-                            {
-                                <li class="entry">
-                                    <div class="entry-row">
-                                        <div class="entry-col">
-                                            <span class="entry-label">Sag</span>
-                                            <span class="entry-value">@saved.WorkCase.Name</span>
-                                        </div>
-                                        <div class="entry-col">
-                                            <span class="entry-label">Opgave</span>
-                                            <span class="entry-value">@saved.Order.Name</span>
-                                        </div>
-                                        <span class="entry-hours">@FormatHours(saved.Entry.Hours) t</span>
-                                        <button type="button"
-                                                class="entry-details-btn"
-                                                @onclick="() => OpenDetails(saved)">
-                                            Detaljer
-                                        </button>
-                                    </div>
-                                </li>
-                            }
-                        </ul>
+                        var day = weekStart.AddDays(i);
+                        var hours = HoursOn(day);
+                        var isSelected = selectedDay == day;
+                        var isToday = day == DateTime.Today;
+
+                        <button type="button"
+                                class="day @(isSelected ? "day-selected" : "") @(isToday ? "day-today" : "")"
+                                aria-pressed="@(isSelected ? "true" : "false")"
+                                aria-label="@DayNames[i] @FormatShortDate(day)"
+                                @onclick="() => ToggleDay(day)">
+                            <span class="day-date">@FormatShortDate(day)</span>
+                            <span class="day-letter">@DayNames[i][0]</span>
+                            <span class="day-marker">
+                                @if (hours > 0)
+                                {
+                                    <span class="day-dot" aria-hidden="true"></span>
+                                    <span class="day-hours">@FormatHours(hours) t</span>
+                                }
+                            </span>
+                        </button>
                     }
                 </div>
+
+                @if (selectedDay is DateTime selected)
+                {
+                    var selectedEntries = EntriesOn(selected);
+
+                    <div class="day-panel">
+                        <h2 class="day-panel-title">
+                            @DayNames[DayIndex(selected)] @FormatShortDate(selected)
+                            <span class="day-panel-total">@FormatHours(HoursOn(selected)) timer</span>
+                        </h2>
+
+                        @if (selectedEntries.Count == 0)
+                        {
+                            <p class="day-panel-empty">Ingen registreringer denne dag.</p>
+                        }
+                        else
+                        {
+                            <ul class="entry-list">
+                                @foreach (var entry in selectedEntries)
+                                {
+                                    <li class="entry">
+                                        <div class="entry-row">
+                                            <div class="entry-col">
+                                                <span class="entry-label">Sag</span>
+                                                <span class="entry-value">@OrderName(entry.TaskId)</span>
+                                            </div>
+                                            <div class="entry-col">
+                                                <span class="entry-label">Opgave</span>
+                                                <span class="entry-value">@TaskName(entry.TaskId)</span>
+                                            </div>
+                                            <span class="entry-hours">@FormatHours(entry.Hours) t</span>
+                                            <button type="button"
+                                                    class="entry-details-btn"
+                                                    @onclick="() => OpenDetails(entry)">
+                                                Detaljer
+                                            </button>
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                }
             }
         </div>
     </section>
 
     <aside class="dashboard-side">
         <div class="total-card">
-            <span class="total-label">Total denne uge</span>
-            <span class="total-value">@FormatHours(WeekTotal) <small>timer</small></span>
+            <span class="total-label">Total for ugen</span>
+            <span class="total-value">@(isLoading || loadError is not null ? "–" : FormatHours(WeekTotal)) <small>timer</small></span>
         </div>
 
         <div class="register-bar">
@@ -125,17 +145,17 @@
 
         <dl class="details-list">
             <dt>Sag</dt>
-            <dd>@detailsEntry.WorkCase.Name</dd>
+            <dd>@OrderName(detailsEntry.TaskId)</dd>
             <dt>Opgave</dt>
-            <dd>@detailsEntry.Order.Name</dd>
+            <dd>@TaskName(detailsEntry.TaskId)</dd>
             <dt>Dato</dt>
-            <dd>@DayNames[DayIndex(detailsEntry.Entry.Date)] @FormatShortDate(detailsEntry.Entry.Date)</dd>
+            <dd>@DayNames[DayIndex(detailsEntry.Date)] @FormatShortDate(detailsEntry.Date)</dd>
             <dt>Varighed</dt>
-            <dd>@FormatHours(detailsEntry.Entry.Hours) timer</dd>
-            @if (!string.IsNullOrWhiteSpace(detailsEntry.Entry.Comment))
+            <dd>@FormatHours(detailsEntry.Hours) timer</dd>
+            @if (!string.IsNullOrWhiteSpace(detailsEntry.Comment))
             {
                 <dt>Kommentar</dt>
-                <dd>@detailsEntry.Entry.Comment</dd>
+                <dd>@detailsEntry.Comment</dd>
             }
         </dl>
 
@@ -143,53 +163,154 @@
         <button type="button" class="btn btn-outline-secondary w-100" disabled>Bilag</button>
         <p class="details-hint">Bilag kommer i en senere version.</p>
 
+        @if (detailsError is not null)
+        {
+            <p class="validation-message" role="alert">@detailsError</p>
+        }
+
         <div class="details-actions">
             <button type="button" class="btn btn-outline-primary" @onclick="EditDetails">Rediger</button>
-            <button type="button" class="btn btn-danger" @onclick="DeleteDetails">
-                @(confirmDelete ? "Bekræft sletning" : "Slet")
+            <button type="button" class="btn btn-danger" disabled="@isDeleting" @onclick="DeleteDetails">
+                @(isDeleting ? "Sletter..." : confirmDelete ? "Bekræft sletning" : "Slet")
             </button>
         </div>
     </div>
 }
 
 @code {
-    // No login yet, so there is no real user name. Replace with the authenticated user once auth exists.
-    private const string UserName = "Baris";
-
     private static readonly string[] DayNames =
         ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"];
 
+    [SupplyParameterFromQuery]
+    public DateTime? Date { get; set; }
+
     private DateTime weekStart = StartOfWeek(DateTime.Today);
     private DateTime? selectedDay;
-    private SavedTimeEntry? detailsEntry;
+    private TimeEntryResponse? detailsEntry;
+    private IReadOnlyList<TimeEntryResponse> entries = [];
+    private IReadOnlyList<OrderResponse> orders = [];
+    private IReadOnlyList<TaskResponse> tasks = [];
+    private string? userName;
+    private string? loadError;
+    private string? catalogError;
+    private string? detailsError;
+    private bool isLoading = true;
+    private bool isDeleting;
     private bool confirmDelete;
+    private int loadVersion;
 
-    private decimal WeekTotal => SavedTimeEntriesState.WeeklyTotalHours(weekStart);
+    private decimal WeekTotal => entries.Sum(entry => entry.Hours);
 
-    private void ChangeWeek(int weeks)
+    protected override async Task OnInitializedAsync()
+    {
+        var userRequest = UsersApiClient.GetMeAsync();
+        var ordersRequest = OrdersApiClient.GetOrdersAsync();
+        var tasksRequest = TasksApiClient.GetTasksAsync();
+
+        var userResult = await userRequest;
+        if (userResult.IsSuccess)
+        {
+            userName = userResult.Value!.Name;
+        }
+
+        SetCatalog(await ordersRequest, await tasksRequest);
+    }
+
+    private async Task LoadCatalogAsync()
+    {
+        var ordersRequest = OrdersApiClient.GetOrdersAsync();
+        var tasksRequest = TasksApiClient.GetTasksAsync();
+        SetCatalog(await ordersRequest, await tasksRequest);
+    }
+
+    private void SetCatalog(ApiResult<ViewOrdersResponse> ordersResult, ApiResult<ViewTasksResponse> tasksResult)
+    {
+        catalogError = null;
+        if (ordersResult.IsSuccess)
+        {
+            orders = ordersResult.Value!.Items.ToArray();
+        }
+        else
+        {
+            catalogError = string.Join(" ", ordersResult.Errors.Select(error => error.Message));
+        }
+
+        if (tasksResult.IsSuccess)
+        {
+            tasks = tasksResult.Value!.Items.ToArray();
+        }
+        else
+        {
+            catalogError = string.Join(" ", new[] { catalogError }
+                .Where(message => !string.IsNullOrWhiteSpace(message))
+                .Concat(tasksResult.Errors.Select(error => error.Message)));
+        }
+    }
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (Date is DateTime date)
+        {
+            weekStart = StartOfWeek(date);
+        }
+
+        return LoadWeekAsync();
+    }
+
+    private async Task LoadWeekAsync()
+    {
+        var version = ++loadVersion;
+        isLoading = true;
+        loadError = null;
+        entries = [];
+
+        var result = await TimeEntriesApiClient.GetEntriesAsync(
+            DateOnly.FromDateTime(weekStart), DateOnly.FromDateTime(weekStart.AddDays(6)));
+        if (version != loadVersion)
+        {
+            return;
+        }
+
+        if (result.IsSuccess)
+        {
+            entries = result.Value!.Items.ToArray();
+        }
+        else
+        {
+            loadError = string.Join(" ", result.Errors.Select(error => error.Message));
+        }
+
+        isLoading = false;
+    }
+
+    private async Task ChangeWeek(int weeks)
     {
         weekStart = weekStart.AddDays(7 * weeks);
         selectedDay = null;
+        CloseDetails();
+        await LoadWeekAsync();
     }
 
     private void ToggleDay(DateTime day) => selectedDay = selectedDay == day ? null : day;
 
-    private void OpenDetails(SavedTimeEntry entry)
+    private void OpenDetails(TimeEntryResponse entry)
     {
         detailsEntry = entry;
         confirmDelete = false;
+        detailsError = null;
     }
 
     private void CloseDetails()
     {
         detailsEntry = null;
         confirmDelete = false;
+        detailsError = null;
     }
 
-    private void EditDetails() => Navigation.NavigateTo($"/register-time/{detailsEntry!.Entry.Id}");
+    private void EditDetails() => Navigation.NavigateTo($"/register-time/{detailsEntry!.Id:D}");
 
     // First click asks for confirmation, second click deletes.
-    private void DeleteDetails()
+    private async Task DeleteDetails()
     {
         if (!confirmDelete)
         {
@@ -197,15 +318,37 @@
             return;
         }
 
-        SavedTimeEntriesState.Remove(detailsEntry!.Entry.Id);
-        CloseDetails();
+        isDeleting = true;
+        detailsError = null;
+        var result = await TimeEntriesApiClient.DeleteAsync(detailsEntry!.Id);
+        isDeleting = false;
+
+        if (result.IsSuccess)
+        {
+            CloseDetails();
+            await LoadWeekAsync();
+        }
+        else
+        {
+            detailsError = string.Join(" ", result.Errors.Select(error => error.Message));
+            confirmDelete = false;
+        }
     }
 
-    private List<SavedTimeEntry> EntriesOn(DateTime day) =>
-        SavedTimeEntriesState.Entries.Where(e => e.Entry.Date.Date == day).ToList();
+    private List<TimeEntryResponse> EntriesOn(DateTime day) =>
+        entries.Where(entry => entry.Date.Date == day).ToList();
 
     private decimal HoursOn(DateTime day) =>
-        SavedTimeEntriesState.Entries.Where(e => e.Entry.Date.Date == day).Sum(e => e.Entry.Hours);
+        entries.Where(entry => entry.Date.Date == day).Sum(entry => entry.Hours);
+
+    private string TaskName(Guid taskId) =>
+        tasks.FirstOrDefault(task => task.Id == taskId)?.Title ?? taskId.ToString("D");
+
+    private string OrderName(Guid taskId)
+    {
+        var orderId = tasks.FirstOrDefault(task => task.Id == taskId)?.OrderId;
+        return orders.FirstOrDefault(order => order.Id == orderId)?.Name ?? "Ukendt sag";
+    }
 
     private void RegisterNewTime() =>
         Navigation.NavigateTo(selectedDay is DateTime day

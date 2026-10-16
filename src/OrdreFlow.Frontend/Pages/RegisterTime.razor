@@ -1,8 +1,9 @@
 @page "/register-time"
-@page "/register-time/{EntryId:int}"
-@inject IWorkCasesProvider WorkCasesProvider
+@page "/register-time/{EntryId:guid}"
+@using System.Globalization
+@inject OrdersApiClient OrdersApiClient
+@inject TasksApiClient TasksApiClient
 @inject ITimeEntriesApiClient TimeEntriesApiClient
-@inject SavedTimeEntriesState SavedTimeEntriesState
 @inject NavigationManager Navigation
 
 <PageTitle>OrdreFlow</PageTitle>
@@ -15,48 +16,74 @@
         <h1>@(IsEdit ? "Rediger registrering" : "Registrer ny tid")</h1>
     </div>
 
-    @if (workCases is null)
+    @if (isLoading)
     {
-        <p class="register-message">Henter sager...</p>
+        <p class="register-message">Henter oplysninger...</p>
     }
-    else if (IsEdit && existing is null)
+    else if (loadError is not null)
     {
-        <p class="register-message">Registreringen blev ikke fundet. <a href="">Gå til forsiden</a>.</p>
+        <p class="validation-message" role="alert">@loadError</p>
+        <button type="button" class="btn btn-outline-primary" @onclick="LoadAsync">Prøv igen</button>
     }
     else
     {
         <EditForm Model="formModel" OnValidSubmit="Submit">
             <DataAnnotationsValidator />
 
-            <div class="form-field">
-                <label for="work-case">Sag</label>
-                <InputSelect id="work-case" class="form-select form-select-lg"
-                             @bind-Value="formModel.WorkCaseId" @bind-Value:after="OnWorkCaseChanged">
-                    <option value="">Vælg sag</option>
-                    @foreach (var workCase in workCases)
-                    {
-                        <option value="@workCase.Id">@workCase.Name</option>
-                    }
-                </InputSelect>
-                <ValidationMessage For="() => formModel.WorkCaseId" />
-            </div>
-
-            <div class="form-field">
-                <label for="order">Opgave</label>
-                <InputSelect id="order" class="form-select form-select-lg"
-                             disabled="@(SelectedWorkCase is null)"
-                             @bind-Value="formModel.OrderId">
-                    <option value="">@(SelectedWorkCase is null ? "Vælg først en sag" : "Vælg opgave")</option>
-                    @if (SelectedWorkCase is not null)
-                    {
-                        @foreach (var order in SelectedWorkCase.Orders)
+            @if (IsEdit)
+            {
+                <div class="form-field">
+                    <span class="d-block fw-semibold">Sag</span>
+                    <p>@SelectedOrder?.Name</p>
+                </div>
+                <div class="form-field">
+                    <span class="d-block fw-semibold">Opgave</span>
+                    <p>@existingTask?.Title</p>
+                </div>
+            }
+            else
+            {
+                <div class="form-field">
+                    <label for="order">Sag</label>
+                    <InputSelect id="order" class="form-select form-select-lg"
+                                 @bind-Value="formModel.OrderId" @bind-Value:after="OnOrderChanged">
+                        <option value="">Vælg sag</option>
+                        @foreach (var order in orders?.Where(order =>
+                            string.Equals(order.Status, "Open", StringComparison.OrdinalIgnoreCase)) ?? [])
                         {
                             <option value="@order.Id">@order.Name</option>
                         }
+                    </InputSelect>
+                    <ValidationMessage For="() => formModel.OrderId" />
+                    @if (orders?.Any(order => string.Equals(order.Status, "Open", StringComparison.OrdinalIgnoreCase)) != true)
+                    {
+                        <p class="register-message">Der er ingen sager tilgængelige.</p>
                     }
-                </InputSelect>
-                <ValidationMessage For="() => formModel.OrderId" />
-            </div>
+                </div>
+
+                <div class="form-field">
+                    <label for="task">Opgave</label>
+                    <InputSelect id="task" class="form-select form-select-lg"
+                                 disabled="@(formModel.OrderId is null || isLoadingTasks || tasksError is not null)"
+                                 @bind-Value="formModel.TaskId">
+                        <option value="">@(isLoadingTasks ? "Henter opgaver..." : "Vælg opgave")</option>
+                        @foreach (var task in tasks)
+                        {
+                            <option value="@task.Id">@task.Title</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => formModel.TaskId" />
+                    @if (tasksError is not null)
+                    {
+                        <p class="validation-message" role="alert">@tasksError</p>
+                        <button type="button" class="btn btn-outline-primary" @onclick="OnOrderChanged">Prøv igen</button>
+                    }
+                    else if (formModel.OrderId is not null && !isLoadingTasks && tasks.Count == 0)
+                    {
+                        <p class="register-message">Der er ingen opgaver på denne sag.</p>
+                    }
+                </div>
+            }
 
             <div class="form-row">
                 <div class="form-field">
@@ -91,10 +118,12 @@
 
             @if (submitError is not null)
             {
-                <p class="validation-message">@submitError</p>
+                <p class="validation-message" role="alert">@submitError</p>
             }
 
-            <button type="submit" class="btn btn-success submit-btn" disabled="@isSubmitting">
+            <button type="submit" class="btn btn-success submit-btn"
+                    disabled="@(isSubmitting || isLoadingTasks || tasksError is not null ||
+                                (!IsEdit && orders?.Any(order => string.Equals(order.Status, "Open", StringComparison.OrdinalIgnoreCase)) != true))">
                 @(isSubmitting ? "Gemmer..." : IsEdit ? "Gem ændringer" : "Opret")
             </button>
         </EditForm>
@@ -103,92 +132,140 @@
 
 @code {
     [Parameter]
-    public int? EntryId { get; set; }
+    public Guid? EntryId { get; set; }
 
-    // Lets the front page pre-fill the day that was selected there.
     [SupplyParameterFromQuery]
     public DateTime? Date { get; set; }
 
-    private IReadOnlyList<WorkCase>? workCases;
-    private SavedTimeEntry? existing;
-    private readonly TimeRegistrationFormModel formModel = new();
+    private TimeRegistrationFormModel formModel = new();
+    private IReadOnlyList<OrderResponse>? orders;
+    private IReadOnlyList<TaskResponse> tasks = [];
+    private TaskResponse? existingTask;
+    private bool isLoading = true;
+    private bool isLoadingTasks;
     private bool isSubmitting;
+    private string? loadError;
+    private string? tasksError;
     private string? submitError;
 
     private bool IsEdit => EntryId is not null;
+    private OrderResponse? SelectedOrder => orders?.FirstOrDefault(order => order.Id == formModel.OrderId);
 
-    private WorkCase? SelectedWorkCase => workCases?.FirstOrDefault(w => w.Id == formModel.WorkCaseId);
+    protected override Task OnParametersSetAsync() => LoadAsync();
 
-    protected override async Task OnInitializedAsync()
+    private async Task LoadAsync()
     {
-        workCases = await WorkCasesProvider.GetWorkCasesAsync();
+        isLoading = true;
+        loadError = null;
+        tasksError = null;
+        submitError = null;
+        isLoadingTasks = false;
+        existingTask = null;
+        tasks = [];
+        orders = null;
+        formModel = new TimeRegistrationFormModel();
 
-        if (EntryId is int entryId)
+        var orderResult = await OrdersApiClient.GetOrdersAsync();
+        if (!orderResult.IsSuccess)
         {
-            existing = SavedTimeEntriesState.Find(entryId);
-            if (existing is not null)
-            {
-                formModel.WorkCaseId = existing.WorkCase.Id;
-                formModel.OrderId = existing.Order.Id;
-                formModel.Date = existing.Entry.Date;
-                formModel.Hours = existing.Entry.Hours;
-                formModel.Comment = existing.Entry.Comment;
-            }
-        }
-        else if (Date is DateTime date)
-        {
-            formModel.Date = date.Date;
-        }
-    }
-
-    // A new work case has different orders; pick the only one automatically if there is just one.
-    private void OnWorkCaseChanged() =>
-        formModel.OrderId = SelectedWorkCase?.Orders.Count == 1 ? SelectedWorkCase.Orders[0].Id : null;
-
-    private async Task Submit()
-    {
-        var workCase = SelectedWorkCase;
-        var order = workCase?.Orders.FirstOrDefault(o => o.Id == formModel.OrderId);
-        if (workCase is null || order is null || formModel.Hours is null)
-        {
+            loadError = string.Join(" ", orderResult.Errors.Select(error => error.Message));
+            isLoading = false;
             return;
         }
 
-        if (existing is not null)
+        orders = orderResult.Value!.Items.ToArray();
+
+        if (EntryId is Guid entryId)
         {
-            var updatedEntry = existing.Entry with
+            var entryResult = await TimeEntriesApiClient.GetAsync(entryId);
+            if (!entryResult.IsSuccess)
             {
-                TaskId = order.Id,
-                Date = formModel.Date,
-                Hours = formModel.Hours.Value,
-                Comment = formModel.Comment
-            };
-            SavedTimeEntriesState.Update(new SavedTimeEntry(updatedEntry, workCase, order));
-            Navigation.NavigateTo("/");
+                loadError = string.Join(" ", entryResult.Errors.Select(error => error.Message));
+                isLoading = false;
+                return;
+            }
+
+            var entry = entryResult.Value!;
+            var taskResult = await TasksApiClient.GetTaskAsync(entry.TaskId);
+            if (!taskResult.IsSuccess)
+            {
+                loadError = string.Join(" ", taskResult.Errors.Select(error => error.Message));
+                isLoading = false;
+                return;
+            }
+
+            existingTask = taskResult.Value!;
+            formModel.OrderId = existingTask.OrderId;
+            formModel.TaskId = existingTask.Id;
+            formModel.Date = entry.Date;
+            formModel.Hours = entry.Hours;
+            formModel.Comment = entry.Comment;
+        }
+        else
+        {
+            formModel.OrderId = null;
+            formModel.TaskId = null;
+            formModel.Date = Date?.Date ?? DateTime.Today;
+            formModel.Hours = null;
+            formModel.Comment = null;
+        }
+
+        isLoading = false;
+    }
+
+    private async Task OnOrderChanged()
+    {
+        formModel.TaskId = null;
+        tasks = [];
+        tasksError = null;
+        if (formModel.OrderId is not Guid orderId)
+        {
+            isLoadingTasks = false;
+            return;
+        }
+
+        isLoadingTasks = true;
+        var result = await TasksApiClient.GetTasksAsync(orderId);
+        if (formModel.OrderId == orderId)
+        {
+            if (result.IsSuccess)
+            {
+                tasks = result.Value!.Items.ToArray();
+            }
+            else
+            {
+                tasksError = string.Join(" ", result.Errors.Select(error => error.Message));
+            }
+
+            isLoadingTasks = false;
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (formModel.Hours is null || formModel.TaskId is not Guid taskId)
+        {
             return;
         }
 
         isSubmitting = true;
         submitError = null;
 
-        var request = new CreateTimeEntryRequest(
-            order.Id,
-            formModel.Date,
-            formModel.Hours.Value,
-            formModel.Comment);
-
-        var result = await TimeEntriesApiClient.CreateAsync(request);
+        var result = EntryId is Guid entryId
+            ? await TimeEntriesApiClient.UpdateAsync(entryId,
+                new UpdateTimeEntryRequest(formModel.Date, formModel.Hours.Value, formModel.Comment))
+            : await TimeEntriesApiClient.CreateAsync(
+                new CreateTimeEntryRequest(taskId, formModel.Date, formModel.Hours.Value, formModel.Comment));
 
         isSubmitting = false;
 
         if (result.IsSuccess)
         {
-            SavedTimeEntriesState.Add(new SavedTimeEntry(result.Value!, workCase, order));
-            Navigation.NavigateTo("/");
+            Navigation.NavigateTo($"/?date={formModel.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}");
         }
         else
         {
-            submitError = string.Join(" ", result.Errors.Select(e => e.Message));
+            submitError = string.Join(" ", result.Errors.Select(error => error.Message));
         }
     }
 }
