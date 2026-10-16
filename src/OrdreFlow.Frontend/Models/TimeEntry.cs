@@ -1,18 +1,35 @@
 namespace OrdreFlow.Frontend.Models;
 
-public record CreateTimeEntryRequest(
-    int WorkItemId,
+public sealed record CreateTimeEntryRequest(
+    Guid TaskId,
     DateTime Date,
     decimal Hours,
-    TimeSpan? StartTime,
-    TimeSpan? EndTime,
     string? Comment);
 
-public record TimeEntry(
-    int Id,
-    int WorkItemId,
+public sealed record ExportTimeEntriesRequest(
+    DateOnly FromDate,
+    DateOnly ToDate);
+
+public sealed record TimeEntryResponse(
+    Guid Id,
+    Guid TaskId,
     DateTime Date,
     decimal Hours,
-    TimeSpan? StartTime,
-    TimeSpan? EndTime,
     string? Comment);
+
+public sealed record UpdateTimeEntryRequest(
+    DateTime Date,
+    decimal Hours,
+    string? Comment);
+
+public sealed record ViewTimeEntriesRequest(
+    DateOnly FromDate,
+    DateOnly ToDate);
+
+public sealed record ViewTimeEntriesResponse(
+    IReadOnlyCollection<TimeEntryResponse> Items);
+
+public sealed record WeeklyTotalResponse(
+    DateOnly FromDate,
+    DateOnly ToDate,
+    decimal TotalHours);

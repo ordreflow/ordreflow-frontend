@@ -5,10 +5,10 @@ namespace OrdreFlow.Frontend.Models;
 public class TimeRegistrationFormModel
 {
     [Required(ErrorMessage = "Vælg en sag.")]
-    public int? WorkCaseId { get; set; }
+    public Guid? OrderId { get; set; }
 
     [Required(ErrorMessage = "Vælg en opgave.")]
-    public int? OrderId { get; set; }
+    public Guid? TaskId { get; set; }
 
     [Required]
     public DateTime Date { get; set; } = DateTime.Today;

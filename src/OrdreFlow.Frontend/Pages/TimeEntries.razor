@@ -1,29 +1,53 @@
 @page "/time-entries"
-@inject SavedTimeEntriesState SavedTimeEntriesState
+@using System.Globalization
+@inject ITimeEntriesApiClient TimeEntriesApiClient
+@inject OrdersApiClient OrdersApiClient
+@inject TasksApiClient TasksApiClient
 
 <PageTitle>OrdreFlow</PageTitle>
 
-<h1>Your time entries</h1>
+<h1>Tidsregistreringer</h1>
 
-@if (SavedTimeEntriesState.Entries.Count == 0)
+<div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+    <button type="button" class="btn btn-outline-primary" @onclick="() => ChangeWeek(-1)" aria-label="Forrige uge">&lsaquo;</button>
+    <span>Uge @ISOWeek.GetWeekOfYear(weekStart) (@weekStart.ToString("d/M") &ndash; @weekStart.AddDays(6).ToString("d/M"))</span>
+    <button type="button" class="btn btn-outline-primary" @onclick="() => ChangeWeek(1)" aria-label="Næste uge">&rsaquo;</button>
+</div>
+
+@if (catalogError is not null)
 {
-    <p>No time registrations yet. <a href="register-time">Go register some time</a>.</p>
+    <p class="validation-message" role="alert">@catalogError</p>
+    <button type="button" class="btn btn-outline-primary mb-3" @onclick="LoadCatalogAsync">Prøv igen</button>
+}
+
+@if (isLoading)
+{
+    <p>Henter tidsregistreringer...</p>
+}
+else if (loadError is not null)
+{
+    <p class="validation-message" role="alert">@loadError</p>
+    <button type="button" class="btn btn-outline-primary" @onclick="LoadWeekAsync">Prøv igen</button>
+}
+else if (entries.Count == 0)
+{
+    <p>Ingen tidsregistreringer denne uge. <a href="register-time">Registrer tid</a>.</p>
 }
 else
 {
     <p class="weekly-total">
-        This week's total: <strong>@WeeklyTotal.ToString("0.##") hours</strong>
+        Ugens total: <strong>@FormatHours(entries.Sum(entry => entry.Hours)) timer</strong>
     </p>
 
     <ul class="order-list">
-        @foreach (var saved in SavedTimeEntriesState.Entries.OrderByDescending(e => e.Entry.Date))
+        @foreach (var entry in entries.OrderByDescending(item => item.Date))
         {
             <li class="order-card">
-                <span class="order-card-name">@saved.Order.Name (@saved.WorkCase.Name)</span>
-                <span class="order-card-customer">@saved.Entry.Date.ToString("ddd d MMM") &middot; @saved.Entry.Hours.ToString("0.##") hours</span>
-                @if (!string.IsNullOrWhiteSpace(saved.Entry.Comment))
+                <span class="order-card-name">@TaskName(entry.TaskId) (@OrderName(entry.TaskId))</span>
+                <span class="order-card-customer">@entry.Date.ToString("d/M") &middot; @FormatHours(entry.Hours) timer</span>
+                @if (!string.IsNullOrWhiteSpace(entry.Comment))
                 {
-                    <span class="order-card-customer">@saved.Entry.Comment</span>
+                    <span class="order-card-customer">@entry.Comment</span>
                 }
             </li>
         }
@@ -31,5 +55,95 @@ else
 }
 
 @code {
-    private decimal WeeklyTotal => SavedTimeEntriesState.WeeklyTotalHours(DateTime.Today);
+    private DateTime weekStart = StartOfWeek(DateTime.Today);
+    private IReadOnlyList<TimeEntryResponse> entries = [];
+    private IReadOnlyList<OrderResponse> orders = [];
+    private IReadOnlyList<TaskResponse> tasks = [];
+    private string? loadError;
+    private string? catalogError;
+    private bool isLoading = true;
+    private int loadVersion;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCatalogAsync();
+        await LoadWeekAsync();
+    }
+
+    private async Task LoadCatalogAsync()
+    {
+        catalogError = null;
+        var ordersRequest = OrdersApiClient.GetOrdersAsync();
+        var tasksRequest = TasksApiClient.GetTasksAsync();
+
+        var orderResult = await ordersRequest;
+        var taskResult = await tasksRequest;
+
+        if (orderResult.IsSuccess)
+        {
+            orders = orderResult.Value!.Items.ToArray();
+        }
+        else
+        {
+            catalogError = string.Join(" ", orderResult.Errors.Select(error => error.Message));
+        }
+
+        if (taskResult.IsSuccess)
+        {
+            tasks = taskResult.Value!.Items.ToArray();
+        }
+        else
+        {
+            catalogError = string.Join(" ", new[] { catalogError }
+                .Where(message => !string.IsNullOrWhiteSpace(message))
+                .Concat(taskResult.Errors.Select(error => error.Message)));
+        }
+    }
+
+    private async Task ChangeWeek(int weeks)
+    {
+        weekStart = weekStart.AddDays(7 * weeks);
+        await LoadWeekAsync();
+    }
+
+    private async Task LoadWeekAsync()
+    {
+        var version = ++loadVersion;
+        isLoading = true;
+        loadError = null;
+        entries = [];
+
+        var result = await TimeEntriesApiClient.GetEntriesAsync(
+            DateOnly.FromDateTime(weekStart), DateOnly.FromDateTime(weekStart.AddDays(6)));
+        if (version != loadVersion)
+        {
+            return;
+        }
+
+        if (result.IsSuccess)
+        {
+            entries = result.Value!.Items.ToArray();
+        }
+        else
+        {
+            loadError = string.Join(" ", result.Errors.Select(error => error.Message));
+        }
+
+        isLoading = false;
+    }
+
+    private string TaskName(Guid taskId) =>
+        tasks.FirstOrDefault(task => task.Id == taskId)?.Title ?? taskId.ToString("D");
+
+    private string OrderName(Guid taskId)
+    {
+        var orderId = tasks.FirstOrDefault(task => task.Id == taskId)?.OrderId;
+        return orders.FirstOrDefault(order => order.Id == orderId)?.Name ?? "Ukendt sag";
+    }
+
+    private static DateTime StartOfWeek(DateTime date) =>
+        date.Date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
+
+    private static string FormatHours(decimal hours) =>
+        hours.ToString("0.##", CultureInfo.InvariantCulture).Replace('.', ',');
 }
