@@ -1,4 +1,8 @@
 @inherits LayoutComponentBase
+@implements IDisposable
+@inject AuthState AuthState
+@inject NavigationManager Navigation
+
 <div class="page">
     <header class="app-header">
         <NavMenu />
@@ -6,7 +10,10 @@
 
     <main>
         <article class="content">
-            @Body
+            @if (isReady)
+            {
+                @Body
+            }
         </article>
     </main>
 
@@ -16,3 +23,49 @@
         </div>
     </footer>
 </div>
+
+@code {
+    private bool isReady;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        AuthState.Changed += OnAuthChanged;
+
+        await AuthState.InitializeAsync();
+        isReady = RedirectIfSignedOut();
+    }
+
+    // Every page behind this layout requires a signed-in user; the login page uses its own layout.
+    private bool RedirectIfSignedOut()
+    {
+        if (AuthState.IsAuthenticated)
+        {
+            return true;
+        }
+
+        Navigation.NavigateTo("login", replace: true);
+        return false;
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) =>
+        RedirectIfSignedOut();
+
+    // The API rejecting an expired token signs the user out; send them to the login page right away.
+    private void OnAuthChanged()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            isReady = false;
+            Navigation.NavigateTo("login", replace: true);
+        }
+
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        AuthState.Changed -= OnAuthChanged;
+    }
+}

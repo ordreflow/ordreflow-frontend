@@ -1,0 +1,112 @@
+@page "/login"
+@layout LoginLayout
+@inject AuthApiClient AuthApiClient
+@inject UsersApiClient UsersApiClient
+@inject AuthState AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Log ind - OrdreFlow</PageTitle>
+
+<div class="login-card">
+    <div class="login-brand">
+        <span class="login-logo" aria-hidden="true">OF</span>
+        <h1>Log ind</h1>
+    </div>
+
+    @if (!isReady)
+    {
+        <p class="login-message">Indlæser...</p>
+    }
+    else
+    {
+        <EditForm Model="formModel" OnValidSubmit="Submit">
+            <DataAnnotationsValidator />
+
+            <div class="form-field">
+                <label for="email">E-mail</label>
+                <InputText id="email" type="email" class="form-control form-control-lg"
+                           autocomplete="username" inputmode="email" @bind-Value="formModel.Email" />
+                <ValidationMessage For="() => formModel.Email" />
+            </div>
+
+            <div class="form-field">
+                <label for="password">Adgangskode</label>
+                <InputText id="password" type="password" class="form-control form-control-lg"
+                           autocomplete="current-password" @bind-Value="formModel.Password" />
+                <ValidationMessage For="() => formModel.Password" />
+            </div>
+
+            @if (submitError is not null)
+            {
+                <p class="validation-message" role="alert">@submitError</p>
+            }
+
+            <button type="submit" class="btn btn-primary submit-btn" disabled="@isSubmitting">
+                @(isSubmitting ? "Logger ind..." : "Log ind")
+            </button>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private readonly LoginFormModel formModel = new();
+    private bool isReady;
+    private bool isSubmitting;
+    private string? submitError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthState.InitializeAsync();
+        if (AuthState.IsAuthenticated)
+        {
+            Navigation.NavigateTo("", replace: true);
+            return;
+        }
+
+        isReady = true;
+    }
+
+    private async Task Submit()
+    {
+        isSubmitting = true;
+        submitError = null;
+
+        var login = await AuthApiClient.LoginAsync(new LoginRequest(formModel.Email!.Trim(), formModel.Password!));
+        if (!login.IsSuccess)
+        {
+            submitError = LoginErrorMessage(login.Errors);
+            isSubmitting = false;
+            return;
+        }
+
+        // The token has to be in place before the profile call, so the API sees who is asking.
+        await AuthState.SignInAsync(login.Value!);
+
+        var me = await UsersApiClient.GetMeAsync();
+        if (!me.IsSuccess)
+        {
+            await AuthState.SignOutAsync();
+            submitError = "Du blev logget ind, men vi kunne ikke hente din profil. Prøv igen.";
+            isSubmitting = false;
+            return;
+        }
+
+        await AuthState.SetUserAsync(me.Value!);
+        Navigation.NavigateTo("", replace: true);
+    }
+
+    private static string LoginErrorMessage(IReadOnlyList<ApiError> errors)
+    {
+        if (errors.Any(error => error.Code == "InvalidCredentials"))
+        {
+            return "E-mailen eller adgangskoden er forkert.";
+        }
+
+        if (errors.Any(error => error.Code == "UserInactive"))
+        {
+            return "Din bruger er deaktiveret. Kontakt din leder.";
+        }
+
+        return string.Join(" ", errors.Select(error => error.Message));
+    }
+}
