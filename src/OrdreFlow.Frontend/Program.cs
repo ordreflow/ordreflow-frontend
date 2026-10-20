@@ -11,12 +11,17 @@ var apiBaseUrl = builder.Configuration["ApiBaseUrl"]
     ?? throw new InvalidOperationException("ApiBaseUrl is not configured.");
 var apiBaseAddress = new Uri(new Uri(builder.HostEnvironment.BaseAddress), apiBaseUrl);
 
-builder.Services.AddScoped(sp => new HttpClient
+builder.Services.AddScoped<AuthState>();
+builder.Services.AddScoped(sp => new HttpClient(new BearerTokenHandler(sp.GetRequiredService<AuthState>())
+{
+    InnerHandler = new HttpClientHandler()
+})
 {
     BaseAddress = apiBaseAddress,
     // Fail fast with a clear message instead of hanging on "Saving..." when the API is unreachable.
     Timeout = TimeSpan.FromSeconds(15)
 });
+builder.Services.AddScoped<AuthApiClient>();
 builder.Services.AddScoped<ITimeEntriesApiClient, TimeEntriesApiClient>();
 builder.Services.AddScoped<BackendHealthClient>();
 builder.Services.AddScoped<OrdersApiClient>();
