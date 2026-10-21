@@ -7,6 +7,7 @@ public sealed record ChangeUserRoleRequest(string Role);
 public sealed record CreateUserRequest(
     string Name,
     string Email,
+    string Password,
     string Role);
 
 public sealed record UpdateUserRequest(
