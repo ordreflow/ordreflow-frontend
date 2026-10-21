@@ -95,14 +95,11 @@ the tests do not call the backend or change real data.
 ### User management
 
 Managers and administrators can open **Brugere** (`/users`) from the navigation.
-The page lists API-visible users with search and role filtering. Select a user
-to open a keyboard-accessible modal with profile details and editing. New users
-require a name, email, password, and role; managers can create employees only.
-Administrators can additionally change roles, assign an active manager/admin,
-and confirm user deactivation (the API's soft-delete operation preserves history).
-Profile, role, and manager changes are separate API operations with individual
-success/error feedback. The current manager is not displayed because the user
-response contract does not expose it. Authorization remains enforced by the API.
+Managers can view the users visible to them through the API and open read-only
+details. Only administrators can create users, edit profiles, change roles,
+assign managers, or deactivate accounts. New users require a name, email,
+password, and role. These operations show separate success/error feedback;
+authorization remains enforced by the API.
 
 ### Order administration
 

@@ -9,11 +9,11 @@
 <section class="users-page">
     <header class="users-header">
         <div>
-            <p class="eyebrow">Administration</p>
+            <p class="eyebrow">Brugeradministration</p>
             <h1>Brugere</h1>
             <p class="muted">Overblik over brugere og deres adgang til OrdreFlow.</p>
         </div>
-        @if (CanManage)
+        @if (IsAdmin)
         {
             <button class="btn btn-primary" type="button" @onclick="OpenCreate" disabled="@isLoading">+ Opret bruger</button>
         }
@@ -40,7 +40,9 @@
     }
     else if (CanManage)
     {
-        <div class="users-toolbar">
+    @if (IsAdmin)
+    {
+    <div class="users-toolbar">
             <div>
                 <label for="user-search">Søg efter navn eller e-mail</label>
                 <input id="user-search" class="form-control" type="search" placeholder="Find bruger..."
@@ -56,6 +58,11 @@
                 </select>
             </div>
         </div>
+        }
+        else
+        {
+            <p class="muted">Du kan se brugere, der er tilknyttet dig.</p>
+        }
         <p class="muted" aria-live="polite">@VisibleUsers.Count() af @users.Count brugere</p>
         @if (users.Count == 0 && loadError is null)
         {
@@ -118,9 +125,22 @@
                     <div><dt>Status</dt><dd>@StatusName(selectedUser.Status)</dd></div>
                     <div><dt>Rolle</dt><dd>@RoleName(selectedUser.Role)</dd></div>
                     <div><dt>Oprettet</dt><dd>@selectedUser.CreatedAt.ToString("dd.MM.yyyy")</dd></div>
+                    @if (IsAdmin)
+                    {
+                        <div><dt>Tilknyttet manager</dt><dd>@ManagerName(selectedUser.ManagerId)</dd></div>
+                    }
                     <div class="full-width"><dt>Bruger-ID</dt><dd class="user-id">@selectedUser.Id</dd></div>
                 </dl>
             }
+            @if (!isCreating && !IsAdmin && selectedUser is not null)
+            {
+                <dl class="user-metadata">
+                    <div><dt>Navn</dt><dd>@selectedUser.Name</dd></div>
+                    <div><dt>E-mail</dt><dd>@selectedUser.Email</dd></div>
+                </dl>
+            }
+            @if (isCreating || IsAdmin)
+            {
             <EditForm Model="form" OnValidSubmit="SaveProfileAsync">
                 <DataAnnotationsValidator />
                 <fieldset disabled="@isBusy">
@@ -157,6 +177,7 @@
                     <button class="btn btn-primary" type="submit">@(isBusy ? "Gemmer..." : isCreating ? "Opret bruger" : "Gem profil")</button>
                 </fieldset>
             </EditForm>
+            }
 
             @if (!isCreating && IsAdmin && selectedUser is not null)
             {
@@ -177,7 +198,7 @@
                         <p class="muted">Ændrer du din egen rolle, kan du miste adgang til administration.</p>
                     }
                     <label for="assign-manager">Tildel manager</label>
-                    <p class="muted" id="manager-help">Den nuværende manager vises ikke af API'et. Vælg en aktiv leder eller administrator for at tildele en manager.</p>
+                    <p class="muted" id="manager-help">Vælg en aktiv leder eller administrator for at tildele eller ændre manager.</p>
                     <div class="action-row">
                         <select id="assign-manager" class="form-select" @bind="selectedManagerId" aria-describedby="manager-help">
                             <option value="">Vælg manager</option>
@@ -241,7 +262,7 @@
     private ElementReference dialog;
     private IJSObjectReference? dialogModule;
 
-    private bool IsAdmin => AuthState.User?.Role == "Admin";
+    private bool IsAdmin => AuthState.User is { Status: "Active", Role: "Admin" };
     private bool CanManage => AuthState.User is { Status: "Active", Role: "Admin" or "Manager" };
     private IEnumerable<UserResponse> VisibleUsers => users
         .Where(user => string.IsNullOrEmpty(roleFilter) || user.Role == roleFilter)
@@ -251,6 +272,9 @@
     private IEnumerable<UserResponse> AvailableManagers => users
         .Where(user => user.Id != selectedUser?.Id && user.Status == "Active" && user.Role is "Manager" or "Admin")
         .OrderBy(user => user.Name);
+    private string ManagerName(Guid? managerId) => managerId is not Guid id
+        ? "Ingen manager tilknyttet"
+        : users.FirstOrDefault(user => user.Id == id)?.Name ?? id.ToString();
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -294,6 +318,7 @@
 
     private void OpenCreate()
     {
+        if (!IsAdmin) return;
         ResetDialog();
         isCreating = true;
         form = new();
@@ -326,6 +351,7 @@
     {
         selectedUser = user;
         selectedRole = user.Role;
+        selectedManagerId = user.ManagerId;
         form = new() { Name = user.Name, Email = user.Email, Role = user.Role };
     }
 
@@ -339,6 +365,11 @@
     private async Task SaveProfileAsync()
     {
         if (isBusy) return;
+        if (!IsAdmin)
+        {
+            dialogError = "Kun aktive administratorer kan oprette eller redigere brugere.";
+            return;
+        }
         dialogError = dialogNotice = null;
         if (isCreating && string.IsNullOrWhiteSpace(form.Password))
         {

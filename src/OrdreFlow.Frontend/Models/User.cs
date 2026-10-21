@@ -20,7 +20,8 @@ public sealed record UserResponse(
     string Email,
     string Role,
     string Status,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    Guid? ManagerId = null);
 
 public sealed record ViewUsersResponse(
     IReadOnlyCollection<UserResponse> Items);
