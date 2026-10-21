@@ -8,7 +8,8 @@ public sealed record CreateUserRequest(
     string Name,
     string Email,
     string Password,
-    string Role);
+    string Role,
+    Guid? ManagerId = null);
 
 public sealed record UpdateUserRequest(
     string Name,

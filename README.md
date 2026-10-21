@@ -100,6 +100,7 @@ details. Only administrators can create users, edit profiles, change roles,
 assign managers, or deactivate accounts. New users require a name, email,
 password, and role. These operations show separate success/error feedback;
 authorization remains enforced by the API.
+When creating a user, an administrator may optionally assign an active manager.
 
 ### Order administration
 

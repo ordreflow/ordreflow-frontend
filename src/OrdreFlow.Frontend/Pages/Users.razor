@@ -173,6 +173,16 @@
                                 }
                             </InputSelect>
                         </div>
+                        <div class="form-field">
+                            <label for="create-manager">Tilknyt manager (valgfrit)</label>
+                            <InputSelect id="create-manager" class="form-select" @bind-Value="form.ManagerId">
+                                <option value="">Ingen manager</option>
+                                @foreach (var manager in AvailableManagers)
+                                {
+                                    <option value="@manager.Id">@manager.Name (@RoleName(manager.Role))</option>
+                                }
+                            </InputSelect>
+                        </div>
                     }
                     <button class="btn btn-primary" type="submit">@(isBusy ? "Gemmer..." : isCreating ? "Opret bruger" : "Gem profil")</button>
                 </fieldset>
@@ -380,7 +390,7 @@
         try
         {
             var result = isCreating
-                ? await UsersApiClient.CreateAsync(new(form.Name, form.Email, form.Password, form.Role))
+                ? await UsersApiClient.CreateAsync(new(form.Name, form.Email, form.Password, form.Role, form.ManagerId))
                 : await UsersApiClient.UpdateAsync(selectedUser!.Id, new(form.Name, form.Email));
             if (!result.IsSuccess)
             {

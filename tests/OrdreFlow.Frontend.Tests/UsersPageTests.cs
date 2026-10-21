@@ -36,8 +36,9 @@ public sealed class UsersPageTests : PageTestContext
     public void AdminCanCreateUserWithExpectedPayload()
     {
         var admin = Manager with { Role = "Admin" };
+        var manager = Manager with { Id = Guid.NewGuid() };
         Api.Json("api/users/me", admin);
-        Api.Json("api/users", new ViewUsersResponse([admin]));
+        Api.Json("api/users", new ViewUsersResponse([admin, manager]));
         Api.Accept(HttpMethod.Post, "api/users");
         var page = RenderComponent<Users>();
 
@@ -46,6 +47,7 @@ public sealed class UsersPageTests : PageTestContext
         page.Find("#user-name").Change("New Employee");
         page.Find("#user-email").Change("new@example.com");
         page.Find("#user-password").Change("Test-password-123!");
+        page.Find("#create-manager").Change(manager.Id.ToString());
         page.Find("form").Submit();
 
         page.WaitForAssertion(() =>
@@ -53,7 +55,7 @@ public sealed class UsersPageTests : PageTestContext
             Assert.Empty(page.FindAll("dialog"));
             var request = Assert.Single(Api.Requests.Where(request => request.Method == HttpMethod.Post));
             var payload = JsonSerializer.Deserialize<CreateUserRequest>(request.Body!, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-            Assert.Equal(new CreateUserRequest("New Employee", "new@example.com", "Test-password-123!", "Employee"), payload);
+            Assert.Equal(new CreateUserRequest("New Employee", "new@example.com", "Test-password-123!", "Employee", manager.Id), payload);
         });
     }
 

@@ -15,4 +15,5 @@ public sealed class UserFormModel
 
     public string Password { get; set; } = "";
     public string Role { get; set; } = "Employee";
+    public Guid? ManagerId { get; set; }
 }
