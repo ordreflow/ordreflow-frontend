@@ -17,6 +17,14 @@
         <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Forside</NavLink>
         <NavLink class="nav-link" href="register-time">Registrer tid</NavLink>
         <NavLink class="nav-link" href="time-entries">Tidsregistreringer</NavLink>
+        @if (AuthState.User is { Role: "Admin" or "Manager", Status: "Active" })
+        {
+            <NavLink class="nav-link" href="orders">Ordrer</NavLink>
+        }
+        @if (AuthState.User?.Role is "Admin" or "Manager")
+        {
+            <NavLink class="nav-link" href="users">Brugere</NavLink>
+        }
         @if (AuthState.User is not null)
         {
             <span class="nav-user">@AuthState.User.Name</span>

@@ -1,0 +1,493 @@
+@page "/users"
+@implements IAsyncDisposable
+@inject UsersApiClient UsersApiClient
+@inject AuthState AuthState
+@inject IJSRuntime JS
+
+<PageTitle>Brugere | OrdreFlow</PageTitle>
+
+<section class="users-page">
+    <header class="users-header">
+        <div>
+            <p class="eyebrow">Brugeradministration</p>
+            <h1>Brugere</h1>
+            <p class="muted">Overblik over brugere og deres adgang til OrdreFlow.</p>
+        </div>
+        @if (IsAdmin)
+        {
+            <button class="btn btn-primary" type="button" @onclick="OpenCreate" disabled="@isLoading">+ Opret bruger</button>
+        }
+    </header>
+
+    @if (notice is not null)
+    {
+        <p class="alert alert-success" role="status">@notice</p>
+    }
+    @if (loadError is not null)
+    {
+        <div class="alert alert-danger" role="alert">
+            <p>@loadError</p>
+            <button class="btn btn-outline-danger" type="button" @onclick="LoadAsync" disabled="@isLoading">Prøv igen</button>
+        </div>
+    }
+    @if (isLoading)
+    {
+        <p role="status">Henter brugere...</p>
+    }
+    else if (!CanManage && loadError is null)
+    {
+        <p class="alert alert-info">Brugeroversigten er kun tilgængelig for ledere og administratorer.</p>
+    }
+    else if (CanManage)
+    {
+    @if (IsAdmin)
+    {
+    <div class="users-toolbar">
+            <div>
+                <label for="user-search">Søg efter navn eller e-mail</label>
+                <input id="user-search" class="form-control" type="search" placeholder="Find bruger..."
+                       @bind="search" @bind:event="oninput" />
+            </div>
+            <div>
+                <label for="role-filter">Rolle</label>
+                <select id="role-filter" class="form-select" @bind="roleFilter">
+                    <option value="">Alle roller</option>
+                    <option value="Employee">Medarbejder</option>
+                    <option value="Manager">Leder</option>
+                    <option value="Admin">Administrator</option>
+                </select>
+            </div>
+        </div>
+        }
+        else
+        {
+            <p class="muted">Du kan se brugere, der er tilknyttet dig.</p>
+        }
+        <p class="muted" aria-live="polite">@VisibleUsers.Count() af @users.Count brugere</p>
+        @if (users.Count == 0 && loadError is null)
+        {
+            <p class="empty-state">Der er ingen brugere at vise.</p>
+        }
+        else if (!VisibleUsers.Any())
+        {
+            <p class="empty-state">Ingen brugere matcher din søgning.</p>
+        }
+        else
+        {
+            <ul class="user-list">
+                @foreach (var user in VisibleUsers)
+                {
+                    <li @key="user.Id">
+                        <button type="button" class="user-card" @onclick="() => OpenDetailsAsync(user.Id)">
+                            <span class="avatar" aria-hidden="true">@Initials(user.Name)</span>
+                            <span class="user-identity">
+                                <strong>@user.Name</strong>
+                                <span class="muted">@user.Email</span>
+                            </span>
+                            <span class="user-badges">
+                                <span class="role-badge">@RoleName(user.Role)</span>
+                                <span class="status-badge @(user.Status == "Active" ? "active" : "")">@StatusName(user.Status)</span>
+                            </span>
+                            <span class="user-arrow" aria-hidden="true">&rsaquo;</span>
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+    }
+</section>
+
+@if (dialogOpen)
+{
+    <dialog @ref="dialog" class="user-dialog" aria-labelledby="user-dialog-title"
+            @oncancel="CloseDialog" @oncancel:preventDefault="true">
+        <header class="dialog-header">
+            <h2 id="user-dialog-title">@(isCreating ? "Opret bruger" : "Brugerdetaljer")</h2>
+            <button class="close-button" type="button" aria-label="Luk" disabled="@isBusy" @onclick="CloseDialog">&times;</button>
+        </header>
+        @if (dialogError is not null)
+        {
+            <p class="alert alert-danger" role="alert">@dialogError</p>
+        }
+        @if (dialogNotice is not null)
+        {
+            <p class="alert alert-success" role="status">@dialogNotice</p>
+        }
+        @if (isLoadingDetails)
+        {
+            <p role="status">Henter bruger...</p>
+        }
+        else if (isCreating || selectedUser is not null)
+        {
+            @if (selectedUser is not null)
+            {
+                <dl class="user-metadata">
+                    <div><dt>Status</dt><dd>@StatusName(selectedUser.Status)</dd></div>
+                    <div><dt>Rolle</dt><dd>@RoleName(selectedUser.Role)</dd></div>
+                    <div><dt>Oprettet</dt><dd>@selectedUser.CreatedAt.ToString("dd.MM.yyyy")</dd></div>
+                    @if (IsAdmin)
+                    {
+                        <div><dt>Tilknyttet manager</dt><dd>@ManagerName(selectedUser.ManagerId)</dd></div>
+                    }
+                    <div class="full-width"><dt>Bruger-ID</dt><dd class="user-id">@selectedUser.Id</dd></div>
+                </dl>
+            }
+            @if (!isCreating && !IsAdmin && selectedUser is not null)
+            {
+                <dl class="user-metadata">
+                    <div><dt>Navn</dt><dd>@selectedUser.Name</dd></div>
+                    <div><dt>E-mail</dt><dd>@selectedUser.Email</dd></div>
+                </dl>
+            }
+            @if (isCreating || IsAdmin)
+            {
+            <EditForm Model="form" OnValidSubmit="SaveProfileAsync">
+                <DataAnnotationsValidator />
+                <fieldset disabled="@isBusy">
+                    <legend class="section-title">@(isCreating ? "Ny bruger" : "Profiloplysninger")</legend>
+                    <div class="form-field">
+                        <label for="user-name">Navn</label>
+                        <InputText id="user-name" class="form-control" autocomplete="name" @bind-Value="form.Name" />
+                        <ValidationMessage For="() => form.Name" />
+                    </div>
+                    <div class="form-field">
+                        <label for="user-email">E-mail</label>
+                        <InputText id="user-email" class="form-control" type="email" autocomplete="email" @bind-Value="form.Email" />
+                        <ValidationMessage For="() => form.Email" />
+                    </div>
+                    @if (isCreating)
+                    {
+                        <div class="form-field">
+                            <label for="user-password">Adgangskode</label>
+                            <InputText id="user-password" class="form-control" type="password" autocomplete="new-password"
+                                       required @bind-Value="form.Password" />
+                        </div>
+                        <div class="form-field">
+                            <label for="create-role">Rolle</label>
+                            <InputSelect id="create-role" class="form-select" @bind-Value="form.Role">
+                                <option value="Employee">Medarbejder</option>
+                                @if (IsAdmin)
+                                {
+                                    <option value="Manager">Leder</option>
+                                    <option value="Admin">Administrator</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="form-field">
+                            <label for="create-manager">Tilknyt manager (valgfrit)</label>
+                            <InputSelect id="create-manager" class="form-select" @bind-Value="form.ManagerId">
+                                <option value="">Ingen manager</option>
+                                @foreach (var manager in AvailableManagers)
+                                {
+                                    <option value="@manager.Id">@manager.Name (@RoleName(manager.Role))</option>
+                                }
+                            </InputSelect>
+                        </div>
+                    }
+                    <button class="btn btn-primary" type="submit">@(isBusy ? "Gemmer..." : isCreating ? "Opret bruger" : "Gem profil")</button>
+                </fieldset>
+            </EditForm>
+            }
+
+            @if (!isCreating && IsAdmin && selectedUser is not null)
+            {
+                <fieldset class="admin-section" disabled="@isBusy">
+                    <legend class="section-title">Adgang og tilknytning</legend>
+                    <label for="edit-role">Rolle</label>
+                    <div class="action-row">
+                        <select id="edit-role" class="form-select" @bind="selectedRole">
+                            <option value="Employee">Medarbejder</option>
+                            <option value="Manager">Leder</option>
+                            <option value="Admin">Administrator</option>
+                        </select>
+                        <button type="button" class="btn btn-outline-primary" disabled="@(selectedRole == selectedUser.Role)"
+                                @onclick="ChangeRoleAsync">Gem rolle</button>
+                    </div>
+                    @if (selectedUser.Id == AuthState.User?.Id)
+                    {
+                        <p class="muted">Ændrer du din egen rolle, kan du miste adgang til administration.</p>
+                    }
+                    <label for="assign-manager">Tildel manager</label>
+                    <p class="muted" id="manager-help">Vælg en aktiv leder eller administrator for at tildele eller ændre manager.</p>
+                    <div class="action-row">
+                        <select id="assign-manager" class="form-select" @bind="selectedManagerId" aria-describedby="manager-help">
+                            <option value="">Vælg manager</option>
+                            @foreach (var manager in AvailableManagers)
+                            {
+                                <option value="@manager.Id">@manager.Name (@RoleName(manager.Role))</option>
+                            }
+                        </select>
+                        <button class="btn btn-outline-primary" type="button" disabled="@(selectedManagerId is null)"
+                                @onclick="AssignManagerAsync">Tildel</button>
+                    </div>
+                    @if (!AvailableManagers.Any())
+                    {
+                        <p class="muted">Ingen andre aktive ledere eller administratorer er tilgængelige.</p>
+                    }
+                </fieldset>
+                @if (selectedUser.Status == "Active")
+                {
+                    <div class="danger-zone">
+                        <h3>Slet bruger</h3>
+                        <p>Brugeren deaktiveres. Historiske tidsregistreringer bevares.</p>
+                        @if (confirmDelete)
+                        {
+                            <p role="alert">Vil du deaktivere @selectedUser.Name?</p>
+                            <button class="btn btn-danger" type="button" disabled="@isBusy" @onclick="DeleteAsync">Ja, deaktiver bruger</button>
+                            <button class="btn btn-outline-secondary" type="button" disabled="@isBusy" @onclick="() => confirmDelete = false">Annuller</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-danger" type="button" disabled="@isBusy" @onclick="() => confirmDelete = true">Slet / deaktiver bruger</button>
+                        }
+                    </div>
+                }
+            }
+        }
+        <footer class="dialog-footer">
+            <button class="btn btn-outline-secondary" type="button" disabled="@isBusy" @onclick="CloseDialog">Luk</button>
+        </footer>
+    </dialog>
+}
+
+@code {
+    private IReadOnlyList<UserResponse> users = [];
+    private UserResponse? selectedUser;
+    private UserFormModel form = new();
+    private string search = "";
+    private string roleFilter = "";
+    private string selectedRole = "Employee";
+    private Guid? selectedManagerId;
+    private string? loadError;
+    private string? dialogError;
+    private string? notice;
+    private string? dialogNotice;
+    private bool isLoading = true;
+    private bool isLoadingDetails;
+    private bool isCreating;
+    private bool isBusy;
+    private bool dialogOpen;
+    private bool showDialog;
+    private bool confirmDelete;
+    private ElementReference dialog;
+    private IJSObjectReference? dialogModule;
+
+    private bool IsAdmin => AuthState.User is { Status: "Active", Role: "Admin" };
+    private bool CanManage => AuthState.User is { Status: "Active", Role: "Admin" or "Manager" };
+    private IEnumerable<UserResponse> VisibleUsers => users
+        .Where(user => string.IsNullOrEmpty(roleFilter) || user.Role == roleFilter)
+        .Where(user => user.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || user.Email.Contains(search, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(user => user.Name);
+    private IEnumerable<UserResponse> AvailableManagers => users
+        .Where(user => user.Id != selectedUser?.Id && user.Status == "Active" && user.Role is "Manager" or "Admin")
+        .OrderBy(user => user.Name);
+    private string ManagerName(Guid? managerId) => managerId is not Guid id
+        ? "Ingen manager tilknyttet"
+        : users.FirstOrDefault(user => user.Id == id)?.Name ?? id.ToString();
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (showDialog)
+        {
+            showDialog = false;
+            dialogModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/users-dialog.js");
+            await dialogModule.InvokeVoidAsync("show", dialog);
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        loadError = null;
+        var me = await UsersApiClient.GetMeAsync();
+        if (!me.IsSuccess)
+            loadError = Errors(me);
+        else
+        {
+            await AuthState.SetUserAsync(me.Value!);
+            if (CanManage)
+                await RefreshListAsync();
+            else
+                users = [];
+        }
+        isLoading = false;
+    }
+
+    private async Task RefreshListAsync()
+    {
+        loadError = null;
+        var result = await UsersApiClient.GetUsersAsync();
+        if (result.IsSuccess)
+            users = result.Value!.Items.ToArray();
+        else
+            loadError = Errors(result);
+    }
+
+    private void OpenCreate()
+    {
+        if (!IsAdmin) return;
+        ResetDialog();
+        isCreating = true;
+        form = new();
+        dialogOpen = showDialog = true;
+    }
+
+    private async Task OpenDetailsAsync(Guid id)
+    {
+        ResetDialog();
+        isCreating = false;
+        isLoadingDetails = true;
+        dialogOpen = showDialog = true;
+        var result = await UsersApiClient.GetAsync(id);
+        if (result.IsSuccess)
+            SetSelected(result.Value!);
+        else
+            dialogError = Errors(result);
+        isLoadingDetails = false;
+    }
+
+    private void ResetDialog()
+    {
+        selectedUser = null;
+        dialogError = dialogNotice = null;
+        selectedManagerId = null;
+        confirmDelete = false;
+    }
+
+    private void SetSelected(UserResponse user)
+    {
+        selectedUser = user;
+        selectedRole = user.Role;
+        selectedManagerId = user.ManagerId;
+        form = new() { Name = user.Name, Email = user.Email, Role = user.Role };
+    }
+
+    private void CloseDialog()
+    {
+        if (isBusy) return;
+        dialogOpen = false;
+        form.Password = "";
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        if (isBusy) return;
+        if (!IsAdmin)
+        {
+            dialogError = "Kun aktive administratorer kan oprette eller redigere brugere.";
+            return;
+        }
+        dialogError = dialogNotice = null;
+        if (isCreating && string.IsNullOrWhiteSpace(form.Password))
+        {
+            dialogError = "Indtast en adgangskode.";
+            return;
+        }
+        isBusy = true;
+        try
+        {
+            var result = isCreating
+                ? await UsersApiClient.CreateAsync(new(form.Name, form.Email, form.Password, form.Role, form.ManagerId))
+                : await UsersApiClient.UpdateAsync(selectedUser!.Id, new(form.Name, form.Email));
+            if (!result.IsSuccess)
+            {
+                dialogError = Errors(result);
+                return;
+            }
+            if (isCreating)
+            {
+                form.Password = "";
+                dialogOpen = false;
+                notice = "Brugeren er oprettet.";
+                await RefreshListAsync();
+            }
+            else
+                await AfterChangeAsync("Profilen er gemt.");
+        }
+        finally { isBusy = false; }
+    }
+
+    private Task ChangeRoleAsync() => WriteAsync(
+        () => UsersApiClient.ChangeRoleAsync(selectedUser!.Id, new(selectedRole)), "Rollen er opdateret.");
+
+    private Task AssignManagerAsync() => WriteAsync(
+        () => UsersApiClient.AssignManagerAsync(selectedUser!.Id, new(selectedManagerId!.Value)), "Manageren er tildelt.");
+
+    private async Task WriteAsync(Func<Task<ApiResult<bool>>> write, string message)
+    {
+        if (isBusy) return;
+        isBusy = true;
+        dialogError = dialogNotice = null;
+        try
+        {
+            var result = await write();
+            if (!result.IsSuccess)
+                dialogError = Errors(result);
+            else
+            {
+                selectedManagerId = null;
+                await AfterChangeAsync(message);
+            }
+        }
+        finally { isBusy = false; }
+    }
+
+    private async Task AfterChangeAsync(string message)
+    {
+        dialogNotice = message;
+        var result = await UsersApiClient.GetAsync(selectedUser!.Id);
+        if (!result.IsSuccess)
+        {
+            dialogError = $"Ændringen er gemt, men brugeroplysningerne kunne ikke genindlæses: {Errors(result)}";
+            return;
+        }
+        SetSelected(result.Value!);
+        if (selectedUser!.Id == AuthState.User?.Id)
+            await AuthState.SetUserAsync(selectedUser);
+        if (CanManage)
+            await RefreshListAsync();
+        else
+        {
+            users = [];
+            dialogOpen = false;
+            notice = message;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (isBusy) return;
+        isBusy = true;
+        dialogError = dialogNotice = null;
+        try
+        {
+            var result = await UsersApiClient.DeleteAsync(selectedUser!.Id);
+            if (!result.IsSuccess)
+            {
+                dialogError = Errors(result);
+                return;
+            }
+            dialogOpen = false;
+            notice = "Brugeren er deaktiveret.";
+            if (selectedUser.Id == AuthState.User?.Id)
+                await AuthState.SignOutAsync();
+            else
+                await RefreshListAsync();
+        }
+        finally { isBusy = false; }
+    }
+
+    private static string Errors<T>(ApiResult<T> result) => string.Join(" ", result.Errors.Select(error => error.Message));
+    private static string RoleName(string role) => role switch { "Admin" => "Administrator", "Manager" => "Leder", "Employee" => "Medarbejder", _ => role };
+    private static string StatusName(string status) => status switch { "Active" => "Aktiv", "Inactive" => "Inaktiv", _ => status };
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => char.ToUpperInvariant(part[0])));
+
+    public async ValueTask DisposeAsync()
+    {
+        if (dialogModule is not null)
+            await dialogModule.DisposeAsync();
+    }
+}
