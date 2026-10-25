@@ -1,0 +1,90 @@
+@page "/tasks/{Id:guid}"
+@inject TasksApiClient TasksApiClient
+@inject OrdersApiClient OrdersApiClient
+@inject AuthState AuthState
+
+<PageTitle>OrdreFlow</PageTitle>
+
+<div class="of-card">
+    <div class="of-card-header">
+        <a class="of-back-btn" href="@(task is null ? "tasks" : $"tasks?orderId={task.OrderId:D}")" aria-label="Tilbage til opgaver">
+            <span aria-hidden="true">&lsaquo;</span>
+        </a>
+        <h1>Opgave</h1>
+    </div>
+
+    @if (isLoading)
+    {
+        <p class="of-muted">Henter opgave...</p>
+    }
+    else if (loadError is not null)
+    {
+        <p class="validation-message" role="alert">@loadError</p>
+        <button type="button" class="btn btn-outline-primary" @onclick="LoadAsync">Prøv igen</button>
+    }
+    else if (task is not null)
+    {
+        <dl class="task-details">
+            <dt>Sag</dt>
+            <dd>@(order?.Name ?? "Ukendt sag")</dd>
+            <dt>Titel</dt>
+            <dd class="task-details-title">@task.Title</dd>
+            <dt>Beskrivelse</dt>
+            <dd class="task-details-description">
+                @(string.IsNullOrWhiteSpace(task.Description) ? "Ingen beskrivelse" : task.Description)
+            </dd>
+        </dl>
+
+        <div class="task-actions">
+            @if (AuthState.IsManagerOrAdmin)
+            {
+                <a class="btn btn-outline-primary" href="tasks/@task.Id.ToString("D")/edit">Rediger</a>
+            }
+
+            @* The backend has no way to complete a task yet (no status on Task, no endpoint), so this is disabled for now. *@
+            <button type="button" class="btn btn-success" disabled title="Kommer i en senere version">
+                Markér som færdig
+            </button>
+        </div>
+        <p class="task-actions-hint">Markér som færdig kommer i en senere version.</p>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private TaskResponse? task;
+    private OrderResponse? order;
+    private bool isLoading = true;
+    private string? loadError;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        loadError = null;
+        task = null;
+        order = null;
+
+        var taskRequest = TasksApiClient.GetTaskAsync(Id);
+        var ordersRequest = OrdersApiClient.GetOrdersAsync();
+        var taskResult = await taskRequest;
+        var orderResult = await ordersRequest;
+
+        if (!taskResult.IsSuccess)
+        {
+            loadError = string.Join(" ", taskResult.Errors.Select(error => error.Message));
+        }
+        else
+        {
+            task = taskResult.Value!;
+            order = orderResult.IsSuccess
+                ? orderResult.Value!.Items.FirstOrDefault(item => item.Id == task.OrderId)
+                : null;
+        }
+
+        isLoading = false;
+    }
+}

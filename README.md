@@ -89,7 +89,8 @@ The Blazor WebAssembly frontend loads orders, tasks, user details, and time regi
 Run `dotnet test tests\OrdreFlow.Frontend.Tests\OrdreFlow.Frontend.Tests.csproj`.
 The bUnit/xUnit tests cover user search, manager-created employee payloads,
 manager-created order payloads, task navigation with the selected order ID,
-and employee access restrictions on both pages. HTTP and JavaScript are simulated;
+task create/edit payloads, the order-filtered task list, and employee access
+restrictions on the user, order, and task pages. HTTP and JavaScript are simulated;
 the tests do not call the backend or change real data.
 
 ### User management
@@ -111,9 +112,19 @@ create an order, select one for details, rename an open order, and confirm
 closing it. Closed orders remain visible but cannot be edited. Writes use the
 existing orders API, and saved data is reloaded after successful operations.
 The API remains responsible for authorization and business rules.
-Order details include a **Gå til tasks** button that opens `/tasks?orderId={orderId}`
-with the selected order's ID. The separately implemented tasks page is responsible
-for reading the query parameter and managing tasks for that order.
+Order details include a **Gå til opgaver** button that opens `/tasks?orderId={orderId}`
+with the selected order's ID.
+
+### Task management
+
+The tasks page (`/tasks`, "Opgaver") lists tasks from `GET api/tasks`. When opened
+from an order with `?orderId=`, it shows that order's tasks, and the order filter can
+be changed on the page. Selecting a task opens its details (`/tasks/{id}`).
+Managers and administrators can create a task (`/tasks/new`, pre-selecting the
+current order) through `POST api/tasks` and edit its title and description
+(`/tasks/{id}/edit`) through `PUT api/tasks/{id}`; employees only see the list and
+details. The task's order cannot be changed after creation. **Markér som færdig**
+is shown but disabled, because the API has no way to complete a task yet.
 
 The current time-registration flow is:
 

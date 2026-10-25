@@ -1,0 +1,186 @@
+@page "/tasks/new"
+@page "/tasks/{Id:guid}/edit"
+@inject TasksApiClient TasksApiClient
+@inject OrdersApiClient OrdersApiClient
+@inject AuthState AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>OrdreFlow</PageTitle>
+
+<div class="of-card">
+    <div class="of-card-header">
+        <a class="of-back-btn" href="@BackUrl" aria-label="Tilbage">
+            <span aria-hidden="true">&lsaquo;</span>
+        </a>
+        <h1>@(IsEdit ? "Rediger opgave" : "Ny opgave")</h1>
+    </div>
+
+    @if (!AuthState.IsManagerOrAdmin)
+    {
+        <p class="of-muted">Kun ledere og administratorer kan oprette og redigere opgaver.</p>
+    }
+    else if (isLoading)
+    {
+        <p class="of-muted">Henter oplysninger...</p>
+    }
+    else if (loadError is not null)
+    {
+        <p class="validation-message" role="alert">@loadError</p>
+        <button type="button" class="btn btn-outline-primary" @onclick="LoadAsync">Prøv igen</button>
+    }
+    else
+    {
+        <EditForm Model="formModel" OnValidSubmit="Submit">
+            <DataAnnotationsValidator />
+
+            @if (IsEdit)
+            {
+                @* The API can't move a task to another order, so the order is shown read-only when editing. *@
+                <div class="form-field">
+                    <span class="d-block fw-semibold">Sag</span>
+                    <p class="mb-0">@(orders.FirstOrDefault(order => order.Id == formModel.OrderId)?.Name ?? "Ukendt sag")</p>
+                </div>
+            }
+            else
+            {
+                <div class="form-field">
+                    <label for="order">Sag</label>
+                    <InputSelect id="order" class="form-select form-select-lg" @bind-Value="formModel.OrderId">
+                        <option value="">Vælg sag</option>
+                        @foreach (var order in OpenOrders)
+                        {
+                            <option value="@order.Id">@order.Name</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => formModel.OrderId" />
+                    @if (OpenOrders.Count == 0)
+                    {
+                        <p class="of-muted mt-2 mb-0">Der er ingen åbne sager at oprette opgaver på.</p>
+                    }
+                </div>
+            }
+
+            <div class="form-field">
+                <label for="title">Titel</label>
+                <InputText id="title" class="form-control form-control-lg" maxlength="200" @bind-Value="formModel.Title" />
+                <ValidationMessage For="() => formModel.Title" />
+            </div>
+
+            <div class="form-field">
+                <label for="description">Beskrivelse (valgfri)</label>
+                <InputTextArea id="description" class="form-control" rows="5" maxlength="2000" @bind-Value="formModel.Description" />
+                <ValidationMessage For="() => formModel.Description" />
+            </div>
+
+            @if (submitError is not null)
+            {
+                <p class="validation-message" role="alert">@submitError</p>
+            }
+
+            <button type="submit" class="btn btn-success submit-btn"
+                    disabled="@(isSubmitting || (!IsEdit && OpenOrders.Count == 0))">
+                @(isSubmitting ? "Gemmer..." : IsEdit ? "Gem ændringer" : "Opret")
+            </button>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    // Pre-selects the order when "+ Ny opgave" is opened from an order's task list.
+    [SupplyParameterFromQuery(Name = "orderId")]
+    public Guid? PresetOrderId { get; set; }
+
+    private TaskFormModel formModel = new();
+    private IReadOnlyList<OrderResponse> orders = [];
+    private bool isLoading = true;
+    private bool isSubmitting;
+    private string? loadError;
+    private string? submitError;
+
+    private bool IsEdit => Id is not null;
+
+    private string BackUrl =>
+        Id is Guid id ? $"tasks/{id:D}"
+        : PresetOrderId is Guid orderId ? $"tasks?orderId={orderId:D}"
+        : "tasks";
+
+    private IReadOnlyList<OrderResponse> OpenOrders =>
+        orders.Where(order => string.Equals(order.Status, "Open", StringComparison.OrdinalIgnoreCase)).ToArray();
+
+    protected override Task OnParametersSetAsync() =>
+        AuthState.IsManagerOrAdmin ? LoadAsync() : Task.CompletedTask;
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        loadError = null;
+        submitError = null;
+        formModel = new TaskFormModel();
+
+        var orderResult = await OrdersApiClient.GetOrdersAsync();
+        if (!orderResult.IsSuccess)
+        {
+            loadError = string.Join(" ", orderResult.Errors.Select(error => error.Message));
+            isLoading = false;
+            return;
+        }
+
+        orders = orderResult.Value!.Items.ToArray();
+
+        if (Id is Guid id)
+        {
+            var taskResult = await TasksApiClient.GetTaskAsync(id);
+            if (!taskResult.IsSuccess)
+            {
+                loadError = string.Join(" ", taskResult.Errors.Select(error => error.Message));
+                isLoading = false;
+                return;
+            }
+
+            var task = taskResult.Value!;
+            formModel.OrderId = task.OrderId;
+            formModel.Title = task.Title;
+            formModel.Description = task.Description;
+        }
+        else if (OpenOrders.Any(order => order.Id == PresetOrderId))
+        {
+            formModel.OrderId = PresetOrderId;
+        }
+
+        isLoading = false;
+    }
+
+    private async Task Submit()
+    {
+        if (formModel.OrderId is not Guid orderId || string.IsNullOrWhiteSpace(formModel.Title))
+        {
+            return;
+        }
+
+        isSubmitting = true;
+        submitError = null;
+
+        var title = formModel.Title.Trim();
+        // The backend requires a non-null description, but an empty one is allowed.
+        var description = formModel.Description?.Trim() ?? "";
+
+        var result = Id is Guid id
+            ? await TasksApiClient.UpdateTaskAsync(id, new UpdateTaskRequest(title, description))
+            : await TasksApiClient.CreateTaskAsync(new CreateTaskRequest(orderId, title, description));
+
+        isSubmitting = false;
+
+        if (result.IsSuccess)
+        {
+            // Creating returns no id, so show the order's task list; editing returns to the task itself.
+            Navigation.NavigateTo(IsEdit ? BackUrl : $"tasks?orderId={orderId:D}");
+        }
+        else
+        {
+            submitError = string.Join(" ", result.Errors.Select(error => error.Message));
+        }
+    }
+}

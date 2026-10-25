@@ -41,7 +41,7 @@ public sealed class OrdersPageTests : PageTestContext
 
         page.WaitForElement(".order-row").Click();
         page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll(".order-metadata")));
-        page.FindAll("dialog button").Single(button => button.TextContent.Trim() == "Gå til tasks").Click();
+        page.FindAll("dialog button").Single(button => button.TextContent.Trim() == "Gå til opgaver").Click();
 
         Assert.EndsWith($"/tasks?orderId={order.Id}", Services.GetRequiredService<NavigationManager>().Uri);
     }
