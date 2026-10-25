@@ -7,7 +7,9 @@ public sealed record ChangeUserRoleRequest(string Role);
 public sealed record CreateUserRequest(
     string Name,
     string Email,
-    string Role);
+    string Password,
+    string Role,
+    Guid? ManagerId = null);
 
 public sealed record UpdateUserRequest(
     string Name,
@@ -19,7 +21,8 @@ public sealed record UserResponse(
     string Email,
     string Role,
     string Status,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    Guid? ManagerId = null);
 
 public sealed record ViewUsersResponse(
     IReadOnlyCollection<UserResponse> Items);

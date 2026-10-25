@@ -1,0 +1,350 @@
+@page "/orders"
+@implements IAsyncDisposable
+@inject OrdersApiClient OrdersApiClient
+@inject UsersApiClient UsersApiClient
+@inject AuthState AuthState
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Ordrer | OrdreFlow</PageTitle>
+
+<section class="orders-page">
+    <header class="orders-header">
+        <div>
+            <p class="eyebrow">Ordrestyring</p>
+            <h1>Ordrer</h1>
+            <p class="muted">Opret, rediger og afslut dine ordrer.</p>
+        </div>
+        @if (CanManageOrders)
+        {
+            <button class="btn btn-primary" type="button" disabled="@isLoading" @onclick="OpenCreate">+ Opret ordre</button>
+        }
+    </header>
+    @if (notice is not null)
+    {
+        <p class="alert alert-success" role="status">@notice</p>
+    }
+    @if (loadError is not null)
+    {
+        <div class="alert alert-danger" role="alert">
+            <p>@loadError</p>
+            <button class="btn btn-outline-danger" type="button" disabled="@isLoading" @onclick="LoadAsync">Prøv igen</button>
+        </div>
+    }
+    @if (isLoading)
+    {
+        <p role="status">Henter ordrer...</p>
+    }
+    else if (!CanManageOrders && loadError is null)
+    {
+        <p class="alert alert-info">Ordrestyring er kun tilgængelig for aktive managere og administratorer.</p>
+    }
+    else if (CanManageOrders)
+    {
+        <div class="orders-toolbar">
+            <div>
+                <label for="order-search">Søg efter ordre</label>
+                <input id="order-search" type="search" class="form-control" placeholder="Find ordre..."
+                       @bind="search" @bind:event="oninput" />
+            </div>
+            <div>
+                <label for="order-status">Status</label>
+                <select id="order-status" class="form-select" @bind="statusFilter">
+                    <option value="">Alle ordrer</option>
+                    <option value="Open">Åbne</option>
+                    <option value="Closed">Afsluttede</option>
+                </select>
+            </div>
+        </div>
+        <p class="muted" aria-live="polite">@VisibleOrders.Count() af @orders.Count ordrer</p>
+        @if (!VisibleOrders.Any())
+        {
+            <p class="empty-state">@(orders.Count == 0 ? "Der er ingen ordrer endnu." : "Ingen ordrer matcher din søgning.")</p>
+        }
+        else
+        {
+            <ul class="orders-list">
+                @foreach (var order in VisibleOrders)
+                {
+                    <li @key="order.Id">
+                        <button class="order-row" type="button" @onclick="() => OpenDetailsAsync(order.Id)">
+                            <span class="order-icon" aria-hidden="true">#</span>
+                            <span class="order-identity">
+                                <strong>@order.Name</strong>
+                                <span class="muted">Oprettet @order.CreatedAt.ToString("dd.MM.yyyy")</span>
+                            </span>
+                            <span class="status-badge @(order.Status == "Open" ? "open" : "")">@StatusName(order.Status)</span>
+                            <span class="arrow" aria-hidden="true">&rsaquo;</span>
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+    }
+</section>
+
+@if (dialogOpen)
+{
+    <dialog @ref="dialog" class="order-dialog" aria-labelledby="order-dialog-title"
+            @oncancel="CloseDialog" @oncancel:preventDefault="true">
+        <header class="dialog-header">
+            <h2 id="order-dialog-title">@(isCreating ? "Opret ordre" : "Ordredetaljer")</h2>
+            <button class="close-button" type="button" aria-label="Luk" disabled="@isBusy" @onclick="CloseDialog">&times;</button>
+        </header>
+        @if (dialogError is not null)
+        {
+            <p class="alert alert-danger" role="alert">@dialogError</p>
+        }
+        @if (dialogNotice is not null)
+        {
+            <p class="alert alert-success" role="status">@dialogNotice</p>
+        }
+        @if (isLoadingDetails)
+        {
+            <p role="status">Henter ordre...</p>
+        }
+        else if (isCreating || selectedOrder is not null)
+        {
+            @if (selectedOrder is not null)
+            {
+                <dl class="order-metadata">
+                    <div><dt>Ordrenavn</dt><dd>@selectedOrder.Name</dd></div>
+                    <div><dt>Status</dt><dd>@StatusName(selectedOrder.Status)</dd></div>
+                    <div><dt>Oprettet</dt><dd>@selectedOrder.CreatedAt.ToString("dd.MM.yyyy")</dd></div>
+                    @if (selectedOrder.ClosedAt is DateTime closedAt)
+                    {
+                        <div><dt>Afsluttet</dt><dd>@closedAt.ToString("dd.MM.yyyy")</dd></div>
+                    }
+                    <div class="full-width"><dt>Ordre-ID</dt><dd class="order-id">@selectedOrder.Id</dd></div>
+                </dl>
+                @if (CanManageOrders)
+                {
+                    <button class="btn btn-outline-primary" type="button" disabled="@isBusy"
+                            @onclick='() => Navigation.NavigateTo($"/tasks?orderId={selectedOrder.Id}")'>
+                        Gå til opgaver
+                    </button>
+                }
+            }
+            @if (isCreating || selectedOrder?.Status == "Open")
+            {
+                <EditForm Model="form" OnValidSubmit="SaveAsync">
+                    <DataAnnotationsValidator />
+                    <fieldset disabled="@(isBusy || !CanManageOrders)">
+                        <div class="form-field">
+                            <label for="order-name">Ordrenavn</label>
+                            <InputText id="order-name" class="form-control" @bind-Value="form.Name" />
+                            <ValidationMessage For="() => form.Name" />
+                        </div>
+                        <button class="btn btn-primary" type="submit">@(isBusy ? "Gemmer..." : isCreating ? "Opret ordre" : "Gem ændringer")</button>
+                    </fieldset>
+                </EditForm>
+            }
+            else
+            {
+                <p class="alert alert-info">Ordren er afsluttet og kan ikke redigeres.</p>
+            }
+            @if (selectedOrder?.Status == "Open" && !detailsStale)
+            {
+                <div class="close-section">
+                    <h3>Afslut ordre</h3>
+                    <p>Der kan ikke oprettes nye tidsregistreringer på en afsluttet ordre.</p>
+                    @if (confirmClose)
+                    {
+                        <p role="alert">Vil du afslutte @selectedOrder.Name?</p>
+                        <button class="btn btn-danger" type="button" disabled="@isBusy" @onclick="CloseOrderAsync">Ja, afslut ordre</button>
+                        <button class="btn btn-outline-secondary" type="button" disabled="@isBusy" @onclick="() => confirmClose = false">Annuller</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-outline-danger" type="button" disabled="@isBusy" @onclick="() => confirmClose = true">Afslut ordre</button>
+                    }
+                </div>
+            }
+        }
+        <footer class="dialog-footer">
+            <button class="btn btn-outline-secondary" type="button" disabled="@isBusy" @onclick="CloseDialog">Luk</button>
+        </footer>
+    </dialog>
+}
+
+@code {
+    private IReadOnlyList<OrderResponse> orders = [];
+    private OrderResponse? selectedOrder;
+    private OrderFormModel form = new();
+    private string search = "";
+    private string statusFilter = "";
+    private string? loadError;
+    private string? notice;
+    private string? dialogError;
+    private string? dialogNotice;
+    private bool isLoading = true;
+    private bool isLoadingDetails;
+    private bool isCreating;
+    private bool isBusy;
+    private bool dialogOpen;
+    private bool showDialog;
+    private bool confirmClose;
+    private bool detailsStale;
+    private int detailRequest;
+    private ElementReference dialog;
+    private IJSObjectReference? dialogModule;
+
+    private bool CanManageOrders => AuthState.User is { Role: "Manager" or "Admin", Status: "Active" };
+    private IEnumerable<OrderResponse> VisibleOrders => orders
+        .Where(order => string.IsNullOrEmpty(statusFilter) || order.Status == statusFilter)
+        .Where(order => order.Name.Contains(search, StringComparison.OrdinalIgnoreCase))
+        .OrderByDescending(order => order.CreatedAt);
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (showDialog)
+        {
+            showDialog = false;
+            dialogModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/users-dialog.js");
+            await dialogModule.InvokeVoidAsync("show", dialog);
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        loadError = null;
+        var me = await UsersApiClient.GetMeAsync();
+        if (!me.IsSuccess)
+            loadError = Errors(me);
+        else
+        {
+            await AuthState.SetUserAsync(me.Value!);
+            if (CanManageOrders)
+                await RefreshListAsync();
+        }
+        isLoading = false;
+    }
+
+    private async Task RefreshListAsync()
+    {
+        loadError = null;
+        var result = await OrdersApiClient.GetOrdersAsync();
+        if (result.IsSuccess)
+            orders = result.Value!.Items.ToArray();
+        else
+            loadError = Errors(result);
+    }
+
+    private void PrepareDialog(bool creating)
+    {
+        detailRequest++;
+        isCreating = creating;
+        selectedOrder = null;
+        form = new();
+        dialogError = dialogNotice = null;
+        notice = null;
+        confirmClose = detailsStale = isLoadingDetails = false;
+        dialogOpen = showDialog = true;
+    }
+
+    private void OpenCreate()
+    {
+        if (CanManageOrders) PrepareDialog(true);
+    }
+
+    private async Task OpenDetailsAsync(Guid id)
+    {
+        if (!CanManageOrders) return;
+        PrepareDialog(false);
+        var request = detailRequest;
+        isLoadingDetails = true;
+        var result = await OrdersApiClient.GetAsync(id);
+        if (request != detailRequest || !dialogOpen) return;
+        if (result.IsSuccess)
+            SetSelected(result.Value!);
+        else
+            dialogError = Errors(result);
+        isLoadingDetails = false;
+    }
+
+    private void SetSelected(OrderResponse order)
+    {
+        selectedOrder = order;
+        form = new() { Name = order.Name };
+    }
+
+    private void CloseDialog()
+    {
+        if (isBusy) return;
+        detailRequest++;
+        dialogOpen = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (isBusy || !CanManageOrders || detailsStale) return;
+        isBusy = true;
+        dialogError = dialogNotice = null;
+        try
+        {
+            var result = isCreating
+                ? await OrdersApiClient.CreateAsync(new(form.Name))
+                : await OrdersApiClient.UpdateAsync(selectedOrder!.Id, new(form.Name));
+            if (!result.IsSuccess)
+            {
+                dialogError = Errors(result);
+                return;
+            }
+            if (isCreating)
+            {
+                dialogOpen = false;
+                notice = "Ordren er oprettet.";
+                await RefreshListAsync();
+            }
+            else
+                await AfterChangeAsync("Ordren er opdateret.");
+        }
+        finally { isBusy = false; }
+    }
+
+    private async Task CloseOrderAsync()
+    {
+        if (isBusy || !CanManageOrders || selectedOrder is null || detailsStale) return;
+        isBusy = true;
+        dialogError = dialogNotice = null;
+        try
+        {
+            var result = await OrdersApiClient.CloseAsync(selectedOrder.Id);
+            if (!result.IsSuccess)
+                dialogError = Errors(result);
+            else
+            {
+                confirmClose = false;
+                await AfterChangeAsync("Ordren er afsluttet.");
+            }
+        }
+        finally { isBusy = false; }
+    }
+
+    private async Task AfterChangeAsync(string message)
+    {
+        dialogNotice = message;
+        var result = await OrdersApiClient.GetAsync(selectedOrder!.Id);
+        if (result.IsSuccess)
+            SetSelected(result.Value!);
+        else
+        {
+            detailsStale = true;
+            dialogError = $"Ændringen er gemt, men detaljerne kunne ikke genindlæses. Luk og åbn ordren igen. {Errors(result)}";
+        }
+        await RefreshListAsync();
+    }
+
+    private static string Errors<T>(ApiResult<T> result) => string.Join(" ", result.Errors.Select(error => error.Message));
+    private static string StatusName(string status) => status switch { "Open" => "Åben", "Closed" => "Afsluttet", _ => status };
+
+    public async ValueTask DisposeAsync()
+    {
+        detailRequest++;
+        if (dialogModule is not null)
+            await dialogModule.DisposeAsync();
+    }
+}

@@ -84,6 +84,37 @@ The Blazor WebAssembly frontend loads orders, tasks, user details, and time regi
 
 ## Application Flow
 
+## Component tests
+
+Run `dotnet test tests\OrdreFlow.Frontend.Tests\OrdreFlow.Frontend.Tests.csproj`.
+The bUnit/xUnit tests cover user search, manager-created employee payloads,
+manager-created order payloads, task navigation with the selected order ID,
+and employee access restrictions on both pages. HTTP and JavaScript are simulated;
+the tests do not call the backend or change real data.
+
+### User management
+
+Managers and administrators can open **Brugere** (`/users`) from the navigation.
+Managers can view the users visible to them through the API and open read-only
+details. Only administrators can create users, edit profiles, change roles,
+assign managers, or deactivate accounts. New users require a name, email,
+password, and role. These operations show separate success/error feedback;
+authorization remains enforced by the API.
+When creating a user, an administrator may optionally assign an active manager.
+
+### Order administration
+
+Active managers and administrators can open **Ordrer** (`/orders`) from the navigation. The
+page lists orders with name search and status filtering. Managers manage their
+own orders; administrators retain access according to the API's permissions. They can
+create an order, select one for details, rename an open order, and confirm
+closing it. Closed orders remain visible but cannot be edited. Writes use the
+existing orders API, and saved data is reloaded after successful operations.
+The API remains responsible for authorization and business rules.
+Order details include a **Gå til tasks** button that opens `/tasks?orderId={orderId}`
+with the selected order's ID. The separately implemented tasks page is responsible
+for reading the query parameter and managing tasks for that order.
+
 The current time-registration flow is:
 
 1. `Home.razor` loads the user's name from `GET api/users/me` and the selected week's entries from `GET api/time_entries?FromDate=...&ToDate=...`.
