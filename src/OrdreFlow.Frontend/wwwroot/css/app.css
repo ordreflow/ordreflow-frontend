@@ -183,3 +183,58 @@ code {
     font-size: 1.1rem;
     margin-bottom: 1.25rem;
 }
+
+/* Shared card layout for the task pages */
+
+.of-card {
+    max-width: 40rem;
+    margin: 0 auto 2rem;
+    padding: 1rem 1.25rem 1.5rem;
+    background: var(--of-surface);
+    border: 1px solid var(--of-border);
+    border-radius: var(--of-radius);
+    box-shadow: var(--of-shadow);
+}
+
+.of-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+}
+
+    .of-card-header h1 {
+        margin: 0;
+        font-size: 1.4rem;
+        font-weight: 700;
+    }
+
+.of-back-btn {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 2.5rem;
+    height: 2.5rem;
+    margin-left: -0.5rem;
+    border-radius: 50%;
+    color: var(--of-text);
+    font-size: 1.8rem;
+    line-height: 1;
+    text-decoration: none;
+    transition: background-color 0.15s;
+}
+
+    .of-back-btn:hover {
+        background: var(--of-primary-soft);
+        color: var(--of-primary);
+    }
+
+.of-muted {
+    color: var(--of-muted);
+}
+
+@media (min-width: 900px) {
+    .of-card {
+        padding: 1.5rem 2rem 2rem;
+    }
+}

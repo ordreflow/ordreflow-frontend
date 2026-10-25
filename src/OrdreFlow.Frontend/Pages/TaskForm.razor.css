@@ -1,0 +1,17 @@
+.of-card ::deep .form-select-lg,
+.of-card ::deep .form-control-lg,
+.of-card ::deep textarea.form-control {
+    font-size: 1rem;
+    border-radius: 0.6rem;
+    background-color: var(--of-bg);
+    border-color: var(--of-border);
+}
+
+.submit-btn {
+    width: 100%;
+    min-height: 3.5rem;
+    margin-top: 0.5rem;
+    font-size: 1.15rem;
+    font-weight: 600;
+    border-radius: var(--of-radius);
+}

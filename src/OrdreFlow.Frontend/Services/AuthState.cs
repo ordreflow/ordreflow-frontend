@@ -20,6 +20,11 @@ public class AuthState(IJSRuntime jsRuntime)
     public bool IsAuthenticated =>
         !string.IsNullOrEmpty(AccessToken) && ExpiresAt.ToUniversalTime() > DateTime.UtcNow;
 
+    // Mirrors the backend's ManagerOrAdmin policy so the UI only offers actions the API will allow.
+    public bool IsManagerOrAdmin =>
+        string.Equals(User?.Role, "Manager", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(User?.Role, "Admin", StringComparison.OrdinalIgnoreCase);
+
     public event Action? Changed;
 
     // Safe to call from several components; the session is only read from storage once.

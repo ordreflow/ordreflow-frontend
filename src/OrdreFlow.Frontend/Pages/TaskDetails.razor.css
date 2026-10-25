@@ -1,0 +1,45 @@
+.task-details {
+    margin: 0 0 1.5rem;
+}
+
+    .task-details dt {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--of-muted);
+    }
+
+    .task-details dd {
+        margin: 0 0 1rem;
+        font-size: 1.05rem;
+    }
+
+.task-details-title {
+    font-size: 1.25rem !important;
+    font-weight: 600;
+}
+
+/* Keep line breaks the user typed in the description */
+.task-details-description {
+    white-space: pre-line;
+}
+
+.task-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.75rem;
+}
+
+    .task-actions .btn {
+        min-height: 2.75rem;
+        font-weight: 600;
+        border-radius: 0.75rem;
+    }
+
+.task-actions-hint {
+    margin: 0.5rem 0 0;
+    font-size: 0.8rem;
+    color: var(--of-muted);
+    text-align: center;
+}
