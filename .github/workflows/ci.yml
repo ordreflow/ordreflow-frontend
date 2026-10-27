@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Flox
+        uses: flox/install-flox-action@v2
+
+      - name: Restore dependencies
+        run: flox activate -c 'dotnet restore tests/OrdreFlow.Frontend.Tests/OrdreFlow.Frontend.Tests.csproj'
+
+      - name: Build frontend and tests
+        run: flox activate -c 'dotnet build tests/OrdreFlow.Frontend.Tests/OrdreFlow.Frontend.Tests.csproj --configuration Release --no-restore'
+
+      - name: Run tests
+        run: flox activate -c 'dotnet test tests/OrdreFlow.Frontend.Tests/OrdreFlow.Frontend.Tests.csproj --configuration Release --no-build'
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build --file Dockerfile --tag ordreflow-frontend:ci .
