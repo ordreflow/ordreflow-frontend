@@ -76,6 +76,7 @@ The Blazor WebAssembly frontend loads orders, tasks, user details, and time regi
 - `src/OrdreFlow.Frontend/Pages/Home.razor`: displays the authenticated user's weekly entries and total.
 - `src/OrdreFlow.Frontend/Pages/RegisterTime.razor`: validates and submits a time registration.
 - `src/OrdreFlow.Frontend/Pages/TimeEntries.razor`: displays successfully submitted entries and the current week's total.
+- `src/OrdreFlow.Frontend/Pages/ReviewTimeEntries.razor`: lets managers review their employees' draft time entries.
 - `src/OrdreFlow.Frontend/Layout/`: contains shared application chrome, including the main layout and navigation menu.
 - `src/OrdreFlow.Frontend/Models/`: contains domain, form, and API request/response models.
 - `src/OrdreFlow.Frontend/Services/`: contains HTTP clients for orders, tasks, time entries, user details, and backend health.
@@ -91,7 +92,8 @@ The bUnit/xUnit tests cover user search, manager-created employee payloads,
 manager-created order payloads, task navigation with the selected order ID,
 task create/edit payloads, the order-filtered task list, and employee access
 restrictions on the user, order, and task pages. They also cover time-entry
-statuses, review loading, and edit links. HTTP and JavaScript are simulated;
+statuses, review loading, edit links, and the manager review page (draft and
+employee filtering, accept/return payloads, and employee access). HTTP and JavaScript are simulated;
 the tests do not call the backend or change real data.
 
 ### User management
@@ -133,6 +135,7 @@ The current time-registration flow is:
 2. `RegisterTime.razor` loads orders and their tasks from the API, validates the form, and sends `POST api/time_entries` with the selected task UUID. The backend returns `204 No Content` on success.
 3. Editing and deleting saved entries use the backend's `GET`, `PUT`, and `DELETE api/time_entries/{id}` routes. After a successful write the pages fetch the saved entries again.
 4. `TimeEntries.razor` loads the selected week's saved entries from the API, calculates the weekly total, and shows each entry's status. Opening an entry's reviews calls `GET api/time_entries/{id}/reviews` and displays the decisions, optional reasons, and review dates; the reviews can be refreshed without changing weeks. The **Rediger** link uses the existing edit route; the API decides whether an update is allowed for the entry.
+5. `ReviewTimeEntries.razor` (**Godkend tid**, `/time-entries/review`) is available to active managers and administrators. It loads the selected week's entries from the manager's employees with `GET api/time_entries/manager?FromDate=...&ToDate=...`, shows employee names from `GET api/users`, and filters by employee and status (drafts by default) in the browser. **Godkend** and **Afvis** send `POST api/time_entries/{id}/review` with the decision `accept` or `return`; returning requires a reason. The API only allows reviewing drafts from the manager's own employees.
 
 The frontend communicates with the backend through HTTP/JSON only. It does not connect directly to PostgreSQL, use Entity Framework Core, or replace business and security rules that belong in the API. Frontend models mirror the backend's request and response contracts; review-specific requests live in `Models/TimeEntryReview.cs`.
 

@@ -16,9 +16,10 @@
     <nav class="nav-links @NavMenuCssClass" @onclick="CloseNavMenu">
         <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Forside</NavLink>
         <NavLink class="nav-link" href="register-time">Registrer tid</NavLink>
-        <NavLink class="nav-link" href="time-entries">Tidsregistreringer</NavLink>
+        <NavLink class="nav-link" href="time-entries" Match="NavLinkMatch.All">Tidsregistreringer</NavLink>
         @if (AuthState.User is { Role: "Admin" or "Manager", Status: "Active" })
         {
+            <NavLink class="nav-link" href="time-entries/review">Godkend tid</NavLink>
             <NavLink class="nav-link" href="orders">Ordrer</NavLink>
         }
         @if (AuthState.User?.Role is "Admin" or "Manager")
