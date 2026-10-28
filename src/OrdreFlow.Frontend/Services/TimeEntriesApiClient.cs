@@ -18,6 +18,25 @@ public class TimeEntriesApiClient(HttpClient httpClient) : ITimeEntriesApiClient
             cancellationToken);
     }
 
+    public Task<ApiResult<ViewTimeEntriesResponse>> GetManagerEntriesAsync(
+        DateOnly fromDate,
+        DateOnly toDate,
+        CancellationToken cancellationToken = default)
+    {
+        var from = fromDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var to = toDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return ApiResponse.ReadAsync<ViewTimeEntriesResponse>(
+            () => httpClient.GetAsync($"api/time_entries/manager?FromDate={from}&ToDate={to}", cancellationToken),
+            cancellationToken);
+    }
+
+    public Task<ApiResult<bool>> ReviewAsync(
+        Guid id,
+        ReviewTimeEntryRequest request,
+        CancellationToken cancellationToken = default) =>
+        ApiResponse.WriteAsync(
+            () => httpClient.PostAsJsonAsync($"api/time_entries/{id:D}/review", request, cancellationToken), cancellationToken);
+
     public Task<ApiResult<TimeEntryResponse>> GetAsync(Guid id, CancellationToken cancellationToken = default) =>
         ApiResponse.ReadAsync<TimeEntryResponse>(
             () => httpClient.GetAsync($"api/time_entries/{id:D}", cancellationToken), cancellationToken);

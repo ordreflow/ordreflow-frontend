@@ -1,0 +1,342 @@
+@page "/time-entries/review"
+@using System.Globalization
+@inject ITimeEntriesApiClient TimeEntriesApiClient
+@inject UsersApiClient UsersApiClient
+@inject OrdersApiClient OrdersApiClient
+@inject TasksApiClient TasksApiClient
+@inject AuthState AuthState
+
+<PageTitle>Godkend tid | OrdreFlow</PageTitle>
+
+<section class="review-page">
+    <header class="review-header">
+        <p class="eyebrow">Tidsregistreringer</p>
+        <h1>Godkend tid</h1>
+        <p class="muted">Se dine medarbejderes registreringer, og godkend eller afvis kladder.</p>
+    </header>
+
+    @if (!CanReview)
+    {
+        <p class="alert alert-info">Godkendelse af tid er kun tilgængelig for aktive managere og administratorer.</p>
+    }
+    else
+    {
+        <div class="week-nav">
+            <button type="button" class="btn btn-outline-primary" aria-label="Forrige uge" @onclick="() => ChangeWeek(-1)">&lsaquo;</button>
+            <span class="week-label">Uge @ISOWeek.GetWeekOfYear(weekStart) (@weekStart.ToString("d/M", CultureInfo.InvariantCulture) &ndash; @weekStart.AddDays(6).ToString("d/M", CultureInfo.InvariantCulture))</span>
+            <button type="button" class="btn btn-outline-primary" aria-label="Næste uge" @onclick="() => ChangeWeek(1)">&rsaquo;</button>
+        </div>
+
+        <div class="review-toolbar">
+            <div>
+                <label for="employee-filter">Medarbejder</label>
+                <select id="employee-filter" class="form-select" @bind="employeeFilter">
+                    <option value="">Alle medarbejdere</option>
+                    @foreach (var employee in Employees)
+                    {
+                        <option value="@employee.Id">@employee.Name</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label for="status-filter">Status</label>
+                <select id="status-filter" class="form-select" @bind="statusFilter">
+                    <option value="Draft">Kladder</option>
+                    <option value="Accepted">Godkendte</option>
+                    <option value="Returned">Afviste</option>
+                    <option value="Finalized">Afsluttede</option>
+                    <option value="">Alle</option>
+                </select>
+            </div>
+        </div>
+
+        @if (catalogError is not null)
+        {
+            <p class="alert alert-warning" role="alert">Navne kunne ikke hentes. @catalogError</p>
+        }
+
+        @if (notice is not null)
+        {
+            <p class="alert alert-success" role="status">@notice</p>
+        }
+
+        @if (isLoading)
+        {
+            <p role="status">Henter tidsregistreringer...</p>
+        }
+        else if (loadError is not null)
+        {
+            <div class="alert alert-danger" role="alert">
+                <p>@loadError</p>
+                <button type="button" class="btn btn-outline-danger" @onclick="LoadWeekAsync">Prøv igen</button>
+            </div>
+        }
+        else
+        {
+            <p class="muted" aria-live="polite">
+                @VisibleEntries.Count @(VisibleEntries.Count == 1 ? "registrering" : "registreringer")
+                &middot; @FormatHours(VisibleEntries.Sum(entry => entry.Hours)) timer
+            </p>
+
+            @if (VisibleEntries.Count == 0)
+            {
+                <p class="empty-state">
+                    @(statusFilter == "Draft" ? "Der er ingen kladder, der venter på godkendelse." : "Ingen registreringer matcher filteret.")
+                </p>
+            }
+            else
+            {
+                <ul class="review-list">
+                    @foreach (var entry in VisibleEntries)
+                    {
+                        var isBusy = busyEntryId == entry.Id;
+
+                        <li class="review-entry" @key="entry.Id">
+                            <div class="review-entry-top">
+                                <div class="review-entry-identity">
+                                    <strong class="review-employee">@EmployeeName(entry.EmployeeId)</strong>
+                                    <span>@TaskName(entry.TaskId) <span class="muted">(@OrderName(entry.TaskId))</span></span>
+                                    <span class="muted">@DayName(entry.Date) @entry.Date.ToString("d/M", CultureInfo.InvariantCulture) &middot; @FormatHours(entry.Hours) timer</span>
+                                </div>
+                                <span class="status-badge @StatusClass(entry.Status)">@StatusLabel(entry.Status)</span>
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(entry.Comment))
+                            {
+                                <p class="review-comment">@entry.Comment</p>
+                            }
+
+                            @if (IsDraft(entry))
+                            {
+                                @if (returningEntryId == entry.Id)
+                                {
+                                    <div class="return-form">
+                                        <label for="@($"reason-{entry.Id:N}")">Begrundelse for afvisning</label>
+                                        <textarea id="@($"reason-{entry.Id:N}")" class="form-control" rows="2" maxlength="500"
+                                                  disabled="@isBusy" @bind="returnReason" @bind:event="oninput"></textarea>
+                                        <div class="review-actions">
+                                            <button type="button" class="btn btn-danger"
+                                                    disabled="@(isBusy || string.IsNullOrWhiteSpace(returnReason))"
+                                                    @onclick="() => ReviewAsync(entry, Return)">
+                                                @(isBusy ? "Sender..." : "Send afvisning")
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary" disabled="@isBusy" @onclick="CancelReturn">
+                                                Annuller
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="review-actions">
+                                        <button type="button" class="btn btn-success" disabled="@(busyEntryId is not null)"
+                                                @onclick="() => ReviewAsync(entry, Accept)">
+                                            @(isBusy ? "Godkender..." : "Godkend")
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger" disabled="@(busyEntryId is not null)"
+                                                @onclick="() => StartReturn(entry.Id)">
+                                            Afvis
+                                        </button>
+                                    </div>
+                                }
+                            }
+
+                            @if (actionErrorEntryId == entry.Id && actionError is not null)
+                            {
+                                <p class="validation-message" role="alert">@actionError</p>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        }
+    }
+</section>
+
+@code {
+    private const string Accept = "accept";
+    private const string Return = "return";
+
+    private static readonly string[] DayNames = ["Man", "Tir", "Ons", "Tor", "Fre", "Lør", "Søn"];
+
+    private DateTime weekStart = StartOfWeek(DateTime.Today);
+    private IReadOnlyList<TimeEntryResponse> entries = [];
+    private IReadOnlyList<UserResponse> users = [];
+    private IReadOnlyList<OrderResponse> orders = [];
+    private IReadOnlyList<TaskResponse> tasks = [];
+    private string employeeFilter = "";
+    private string statusFilter = "Draft";
+    private bool isLoading = true;
+    private string? loadError;
+    private string? catalogError;
+    private string? notice;
+    private Guid? busyEntryId;
+    private Guid? returningEntryId;
+    private string returnReason = "";
+    private Guid? actionErrorEntryId;
+    private string? actionError;
+    private int loadVersion;
+
+    // Same rule as the backend: only active managers and admins can review.
+    private bool CanReview => AuthState.User is { Role: "Manager" or "Admin", Status: "Active" };
+
+    private IReadOnlyList<TimeEntryResponse> VisibleEntries => entries
+        .Where(entry => employeeFilter == "" || entry.EmployeeId.ToString() == employeeFilter)
+        .Where(entry => statusFilter == "" || string.Equals(entry.Status, statusFilter, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(entry => entry.Date)
+        .ThenBy(entry => EmployeeName(entry.EmployeeId))
+        .ToArray();
+
+    // The manager's own employees, plus anyone who has entries this week (admins may see others).
+    private IReadOnlyList<UserResponse> Employees => users
+        .Where(user => user.Id != AuthState.User?.Id &&
+                       (user.ManagerId == AuthState.User?.Id || entries.Any(entry => entry.EmployeeId == user.Id)))
+        .OrderBy(user => user.Name)
+        .ToArray();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!CanReview)
+        {
+            return;
+        }
+
+        await Task.WhenAll(LoadCatalogAsync(), LoadWeekAsync());
+    }
+
+    // Names are only for display; the review list still works without them.
+    private async Task LoadCatalogAsync()
+    {
+        var usersRequest = UsersApiClient.GetUsersAsync();
+        var ordersRequest = OrdersApiClient.GetOrdersAsync();
+        var tasksRequest = TasksApiClient.GetTasksAsync();
+        var userResult = await usersRequest;
+        var orderResult = await ordersRequest;
+        var taskResult = await tasksRequest;
+
+        users = userResult.IsSuccess ? userResult.Value!.Items.ToArray() : [];
+        orders = orderResult.IsSuccess ? orderResult.Value!.Items.ToArray() : [];
+        tasks = taskResult.IsSuccess ? taskResult.Value!.Items.ToArray() : [];
+
+        var errors = new[] { userResult.Errors, orderResult.Errors, taskResult.Errors }
+            .SelectMany(list => list)
+            .Select(error => error.Message)
+            .Distinct()
+            .ToArray();
+        catalogError = errors.Length == 0 ? null : string.Join(" ", errors);
+    }
+
+    private async Task ChangeWeek(int weeks)
+    {
+        weekStart = weekStart.AddDays(7 * weeks);
+        notice = null;
+        CancelReturn();
+        await LoadWeekAsync();
+    }
+
+    private async Task LoadWeekAsync()
+    {
+        var version = ++loadVersion;
+        isLoading = true;
+        loadError = null;
+
+        var result = await TimeEntriesApiClient.GetManagerEntriesAsync(
+            DateOnly.FromDateTime(weekStart), DateOnly.FromDateTime(weekStart.AddDays(6)));
+        if (version != loadVersion)
+        {
+            return;
+        }
+
+        if (result.IsSuccess)
+        {
+            entries = result.Value!.Items.ToArray();
+        }
+        else
+        {
+            entries = [];
+            loadError = string.Join(" ", result.Errors.Select(error => error.Message));
+        }
+
+        isLoading = false;
+    }
+
+    private void StartReturn(Guid entryId)
+    {
+        returningEntryId = entryId;
+        returnReason = "";
+        actionError = null;
+        notice = null;
+    }
+
+    private void CancelReturn()
+    {
+        returningEntryId = null;
+        returnReason = "";
+    }
+
+    private async Task ReviewAsync(TimeEntryResponse entry, string decision)
+    {
+        busyEntryId = entry.Id;
+        actionError = null;
+        actionErrorEntryId = null;
+        notice = null;
+
+        var reason = decision == Return ? returnReason.Trim() : null;
+        var result = await TimeEntriesApiClient.ReviewAsync(entry.Id, new ReviewTimeEntryRequest(decision, reason));
+
+        busyEntryId = null;
+
+        if (!result.IsSuccess)
+        {
+            actionErrorEntryId = entry.Id;
+            actionError = string.Join(" ", result.Errors.Select(error => error.Message));
+            return;
+        }
+
+        CancelReturn();
+        notice = decision == Accept
+            ? $"Registreringen fra {EmployeeName(entry.EmployeeId)} er godkendt."
+            : $"Registreringen fra {EmployeeName(entry.EmployeeId)} er afvist.";
+        await LoadWeekAsync();
+    }
+
+    private static bool IsDraft(TimeEntryResponse entry) =>
+        string.Equals(entry.Status, "Draft", StringComparison.OrdinalIgnoreCase);
+
+    private string EmployeeName(Guid employeeId) =>
+        users.FirstOrDefault(user => user.Id == employeeId)?.Name ?? "Ukendt medarbejder";
+
+    private string TaskName(Guid taskId) =>
+        tasks.FirstOrDefault(task => task.Id == taskId)?.Title ?? "Ukendt opgave";
+
+    private string OrderName(Guid taskId)
+    {
+        var orderId = tasks.FirstOrDefault(task => task.Id == taskId)?.OrderId;
+        return orders.FirstOrDefault(order => order.Id == orderId)?.Name ?? "Ukendt sag";
+    }
+
+    private static string StatusLabel(string status) => status.ToLowerInvariant() switch
+    {
+        "draft" => "Kladde",
+        "accepted" => "Godkendt",
+        "returned" => "Afvist",
+        "finalized" => "Afsluttet",
+        _ => status
+    };
+
+    private static string StatusClass(string status) => status.ToLowerInvariant() switch
+    {
+        "draft" => "draft",
+        "accepted" or "finalized" => "accepted",
+        "returned" => "returned",
+        _ => ""
+    };
+
+    private static string DayName(DateTime date) => DayNames[((int)date.DayOfWeek + 6) % 7];
+
+    private static DateTime StartOfWeek(DateTime date) =>
+        date.Date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
+
+    private static string FormatHours(decimal hours) =>
+        hours.ToString("0.##", CultureInfo.InvariantCulture).Replace('.', ',');
+}
