@@ -11,8 +11,10 @@ public sealed class UsersPageTests : PageTestContext
     [Fact]
     public void SearchFiltersUsersByEmail()
     {
+        var admin = Manager with { Role = "Admin" };
         var employee = Manager with { Id = Guid.NewGuid(), Name = "Employee", Email = "employee@example.com", Role = "Employee" };
-        Api.Json("api/users", new ViewUsersResponse([Manager, employee]));
+        Api.Json("api/users/me", admin);
+        Api.Json("api/users", new ViewUsersResponse([admin, employee]));
 
         var page = RenderComponent<Users>();
         page.WaitForElement("#user-search").Input("EMPLOYEE@");
@@ -79,7 +81,7 @@ public sealed class UsersPageTests : PageTestContext
     [Fact]
     public void AdminCanSeeUsersAssignedManager()
     {
-        var admin = Manager with { Role = "Admin" };
+        var admin = Manager with { Id = Guid.NewGuid(), Role = "Admin" };
         var employee = Manager with
         {
             Id = Guid.NewGuid(),
