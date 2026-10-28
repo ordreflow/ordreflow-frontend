@@ -1,0 +1,165 @@
+@page "/reports/top-orders"
+@implements IAsyncDisposable
+@using System.Globalization
+@inject ReportsApiClient ReportsApiClient
+@inject AuthState AuthState
+@inject IJSRuntime JS
+
+<PageTitle>Top 10 ordrer | OrdreFlow</PageTitle>
+
+<section class="report-page">
+    <header class="report-header">
+        <p class="eyebrow">Rapporter</p>
+        <h1>Top 10 ordrer</h1>
+        <p class="muted">De ordrer med flest godkendte timer i den valgte periode.</p>
+    </header>
+
+    @if (!CanView)
+    {
+        <p class="alert alert-info">Rapporten er kun tilgængelig for aktive managere og administratorer.</p>
+    }
+    else
+    {
+        <form class="report-toolbar" @onsubmit="LoadAsync">
+            <div>
+                <label for="from-date">Fra</label>
+                <input id="from-date" type="date" class="form-control" @bind="fromDate" />
+            </div>
+            <div>
+                <label for="to-date">Til</label>
+                <input id="to-date" type="date" class="form-control" @bind="toDate" />
+            </div>
+            <button type="submit" class="btn btn-primary" disabled="@isLoading">Vis rapport</button>
+        </form>
+
+        @if (validationError is not null)
+        {
+            <p class="alert alert-warning" role="alert">@validationError</p>
+        }
+
+        @if (isLoading)
+        {
+            <p role="status">Henter rapport...</p>
+        }
+        else if (loadError is not null)
+        {
+            <div class="alert alert-danger" role="alert">
+                <p>@loadError</p>
+                <button type="button" class="btn btn-outline-danger" @onclick="LoadAsync">Prøv igen</button>
+            </div>
+        }
+        else if (items is not null)
+        {
+            @if (items.Count == 0)
+            {
+                <p class="empty-state">Ingen godkendte timer i den valgte periode.</p>
+            }
+            else
+            {
+                <p class="muted" aria-live="polite">
+                    @reportFrom.ToString("d. MMM yyyy", Culture) &ndash; @reportTo.ToString("d. MMM yyyy", Culture)
+                    &middot; @items.Count @(items.Count == 1 ? "ordre" : "ordrer")
+                    &middot; @FormatHours(items.Sum(item => item.TotalHours)) timer samlet for de viste ordrer
+                </p>
+
+                <div class="chart-card">
+                    <div class="chart-host" @ref="chartHost"></div>
+                </div>
+
+                <table class="report-table">
+                    <caption class="visually-hidden">Top ordrer efter registrerede timer</caption>
+                    <thead>
+                        <tr><th scope="col">#</th><th scope="col">Ordre</th><th scope="col" class="num">Timer</th></tr>
+                    </thead>
+                    <tbody>
+                        @for (var i = 0; i < items.Count; i++)
+                        {
+                            <tr>
+                                <td>@(i + 1)</td>
+                                <td>@items[i].OrderName</td>
+                                <td class="num">@FormatHours(items[i].TotalHours)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    }
+</section>
+
+@code {
+    private static readonly CultureInfo Culture = new("da-DK");
+
+    private DateOnly fromDate = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateOnly toDate = DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly reportFrom;
+    private DateOnly reportTo;
+    private IReadOnlyList<TopOrdersResponse>? items;
+    private bool isLoading;
+    private bool renderPending;
+    private string? loadError;
+    private string? validationError;
+    private ElementReference chartHost;
+    private IJSObjectReference? chartModule;
+
+    private bool CanView => AuthState.User is { Role: "Manager" or "Admin", Status: "Active" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (CanView)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        validationError = null;
+        if (toDate < fromDate)
+        {
+            validationError = "Slutdatoen skal være den samme som eller efter startdatoen.";
+            return;
+        }
+
+        isLoading = true;
+        loadError = null;
+        var result = await ReportsApiClient.GetTopOrdersAsync(fromDate, toDate);
+        isLoading = false;
+
+        if (result.IsSuccess)
+        {
+            items = result.Value!.Items;
+            reportFrom = fromDate;
+            reportTo = toDate;
+            renderPending = true;
+        }
+        else
+        {
+            items = null;
+            loadError = string.Join(" ", result.Errors.Select(error => error.Message));
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!renderPending || items is not { Count: > 0 })
+        {
+            return;
+        }
+
+        renderPending = false;
+        chartModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/top-orders-chart.js");
+        await chartModule.InvokeVoidAsync("render", chartHost, items);
+    }
+
+    private static string FormatHours(decimal hours) => hours.ToString("0.##", Culture);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (chartModule is not null)
+        {
+            try { await chartModule.DisposeAsync(); }
+            catch (JSDisconnectedException) { }
+        }
+    }
+}

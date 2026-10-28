@@ -1,0 +1,23 @@
+.report-page { max-width: 52rem; margin: 0 auto 2rem; }
+.report-header { margin-bottom: 1.5rem; }
+.report-header h1 { font-size: 2rem; font-weight: 700; margin-bottom: .25rem; }
+.report-header p:last-child { margin: 0; }
+.eyebrow { color: var(--of-primary); text-transform: uppercase; letter-spacing: .1em; font-size: .75rem; font-weight: 700; margin-bottom: .4rem; }
+.muted { color: var(--of-muted); font-size: .9rem; }
+label { display: block; font-weight: 600; margin-bottom: .4rem; }
+
+.report-toolbar { display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; align-items: end; padding: 1.25rem; background: var(--of-surface); border: 1px solid var(--of-border); border-radius: var(--of-radius); margin-bottom: 1rem; }
+
+.chart-card { padding: 1rem; background: var(--of-surface); border: 1px solid var(--of-border); border-radius: var(--of-radius); box-shadow: var(--of-shadow); margin-bottom: 1rem; }
+.chart-host { position: relative; width: 100%; }
+.chart-host ::deep .top-orders-tooltip { position: absolute; pointer-events: none; background: #1f2937; color: #fff; padding: .35rem .6rem; border-radius: .4rem; font-size: .8rem; white-space: nowrap; z-index: 1; }
+
+.report-table { width: 100%; border-collapse: collapse; background: var(--of-surface); border: 1px solid var(--of-border); }
+.report-table th, .report-table td { padding: .55rem .75rem; border-bottom: 1px solid var(--of-border); text-align: left; }
+.report-table .num { text-align: right; }
+
+.empty-state { padding: 3rem 1rem; text-align: center; border: 1px dashed var(--of-border); border-radius: var(--of-radius); background: var(--of-surface); }
+
+@media (max-width: 600px) {
+    .report-toolbar { grid-template-columns: 1fr; }
+}
