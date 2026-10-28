@@ -22,6 +22,12 @@ public class TimeEntriesApiClient(HttpClient httpClient) : ITimeEntriesApiClient
         ApiResponse.ReadAsync<TimeEntryResponse>(
             () => httpClient.GetAsync($"api/time_entries/{id:D}", cancellationToken), cancellationToken);
 
+    public Task<ApiResult<ViewTimeEntryReviewsResponse>> GetReviewsAsync(
+        Guid timeEntryId,
+        CancellationToken cancellationToken = default) =>
+        ApiResponse.ReadAsync<ViewTimeEntryReviewsResponse>(
+            () => httpClient.GetAsync($"api/time_entries/{timeEntryId:D}/reviews", cancellationToken), cancellationToken);
+
     public Task<ApiResult<bool>> CreateAsync(
         CreateTimeEntryRequest request,
         CancellationToken cancellationToken = default) =>

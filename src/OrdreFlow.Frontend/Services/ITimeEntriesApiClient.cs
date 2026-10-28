@@ -11,6 +11,10 @@ public interface ITimeEntriesApiClient
 
     Task<ApiResult<TimeEntryResponse>> GetAsync(Guid id, CancellationToken cancellationToken = default);
 
+    Task<ApiResult<ViewTimeEntryReviewsResponse>> GetReviewsAsync(
+        Guid timeEntryId,
+        CancellationToken cancellationToken = default);
+
     Task<ApiResult<bool>> CreateAsync(
         CreateTimeEntryRequest request,
         CancellationToken cancellationToken = default);

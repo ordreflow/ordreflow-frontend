@@ -1,0 +1,92 @@
+.time-entries {
+    max-width: 52rem;
+    margin: 0 auto 2rem;
+}
+
+.entry-card {
+    cursor: default;
+    overflow-wrap: anywhere;
+}
+
+.entry-status {
+    display: inline-block;
+    margin: 0.25rem 0;
+    padding: 0.2rem 0.65rem;
+    border-radius: 1rem;
+    background: var(--of-primary-soft);
+    color: #174a7e;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.entry-comment {
+    white-space: pre-wrap;
+}
+
+.entry-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    width: 100%;
+    margin-top: 0.5rem;
+}
+
+.entry-actions .btn {
+    flex: 1 1 auto;
+    min-height: 2.75rem;
+}
+
+.entry-reviews {
+    align-self: stretch;
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--of-border);
+}
+
+.entry-reviews p {
+    margin: 0;
+}
+
+.entry-reviews .validation-message {
+    color: #b42318;
+}
+
+.review-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.review-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.65rem 0;
+}
+
+.review-item + .review-item {
+    border-top: 1px solid var(--of-border);
+}
+
+.review-decision {
+    font-weight: 600;
+}
+
+.reviewed-at {
+    color: var(--of-muted);
+    font-size: 0.9rem;
+}
+
+.review-reason {
+    white-space: pre-wrap;
+}
+
+@media (min-width: 600px) {
+    .entry-actions {
+        width: auto;
+    }
+
+    .entry-actions .btn {
+        flex: 0 0 auto;
+    }
+}

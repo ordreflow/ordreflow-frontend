@@ -90,7 +90,8 @@ Run `dotnet test tests\OrdreFlow.Frontend.Tests\OrdreFlow.Frontend.Tests.csproj`
 The bUnit/xUnit tests cover user search, manager-created employee payloads,
 manager-created order payloads, task navigation with the selected order ID,
 task create/edit payloads, the order-filtered task list, and employee access
-restrictions on the user, order, and task pages. HTTP and JavaScript are simulated;
+restrictions on the user, order, and task pages. They also cover time-entry
+statuses, review loading, and edit links. HTTP and JavaScript are simulated;
 the tests do not call the backend or change real data.
 
 ### User management
@@ -131,7 +132,7 @@ The current time-registration flow is:
 1. `Home.razor` loads the user's name from `GET api/users/me` and the selected week's entries from `GET api/time_entries?FromDate=...&ToDate=...`.
 2. `RegisterTime.razor` loads orders and their tasks from the API, validates the form, and sends `POST api/time_entries` with the selected task UUID. The backend returns `204 No Content` on success.
 3. Editing and deleting saved entries use the backend's `GET`, `PUT`, and `DELETE api/time_entries/{id}` routes. After a successful write the pages fetch the saved entries again.
-4. `TimeEntries.razor` loads the selected week's saved entries from the API and calculates the weekly total from that response.
+4. `TimeEntries.razor` loads the selected week's saved entries from the API, calculates the weekly total, and shows each entry's status. Opening an entry's reviews calls `GET api/time_entries/{id}/reviews` and displays the decisions, optional reasons, and review dates; the reviews can be refreshed without changing weeks. The **Rediger** link uses the existing edit route; the API decides whether an update is allowed for the entry.
 
 The frontend communicates with the backend through HTTP/JSON only. It does not connect directly to PostgreSQL, use Entity Framework Core, or replace business and security rules that belong in the API. Frontend models mirror the backend's request and response contracts; review-specific requests live in `Models/TimeEntryReview.cs`.
 

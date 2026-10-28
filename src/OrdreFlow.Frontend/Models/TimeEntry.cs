@@ -15,7 +15,9 @@ public sealed record TimeEntryResponse(
     Guid TaskId,
     DateTime Date,
     decimal Hours,
-    string? Comment);
+    string? Comment,
+    Guid EmployeeId,
+    string Status);
 
 public sealed record UpdateTimeEntryRequest(
     DateTime Date,

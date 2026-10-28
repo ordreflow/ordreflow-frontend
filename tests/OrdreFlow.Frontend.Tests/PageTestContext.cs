@@ -39,6 +39,12 @@ public abstract class PageTestContext : TestContext
         public void Accept(HttpMethod method, string path) =>
             responses[(method, path)] = () => new(HttpStatusCode.NoContent);
 
+        public void Fail(HttpMethod method, string path, HttpStatusCode status, ApiError error) =>
+            responses[(method, path)] = () => new(status)
+            {
+                Content = JsonContent.Create(new[] { error })
+            };
+
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
