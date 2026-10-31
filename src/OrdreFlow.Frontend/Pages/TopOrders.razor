@@ -1,3 +1,4 @@
+
 @page "/reports/top-orders"
 @implements IAsyncDisposable
 @using System.Globalization
@@ -11,30 +12,51 @@
     <header class="report-header">
         <p class="eyebrow">Rapporter</p>
         <h1>Top 10 ordrer</h1>
-        <p class="muted">De ordrer med flest godkendte timer i den valgte periode.</p>
+        <p class="muted">
+            De ordrer med flest godkendte timer i den valgte periode.
+        </p>
     </header>
 
     @if (!CanView)
     {
-        <p class="alert alert-info">Rapporten er kun tilgængelig for aktive managere og administratorer.</p>
+        <p class="alert alert-info">
+            Rapporten er kun tilgængelig for aktive managere og administratorer.
+        </p>
     }
     else
     {
-        <form class="report-toolbar" @onsubmit="LoadAsync">
+        <form class="report-toolbar"
+              @onsubmit="LoadAsync"
+              @onsubmit:preventDefault>
+
             <div>
                 <label for="from-date">Fra</label>
-                <input id="from-date" type="date" class="form-control" @bind="fromDate" />
+                <input id="from-date"
+                       type="date"
+                       class="form-control"
+                       @bind="fromDate" />
             </div>
+
             <div>
                 <label for="to-date">Til</label>
-                <input id="to-date" type="date" class="form-control" @bind="toDate" />
+                <input id="to-date"
+                       type="date"
+                       class="form-control"
+                       @bind="toDate" />
             </div>
-            <button type="submit" class="btn btn-primary" disabled="@isLoading">Vis rapport</button>
+
+            <button type="submit"
+                    class="btn btn-primary"
+                    disabled="@isLoading">
+                Vis rapport
+            </button>
         </form>
 
         @if (validationError is not null)
         {
-            <p class="alert alert-warning" role="alert">@validationError</p>
+            <p class="alert alert-warning" role="alert">
+                @validationError
+            </p>
         }
 
         @if (isLoading)
@@ -45,43 +67,81 @@
         {
             <div class="alert alert-danger" role="alert">
                 <p>@loadError</p>
-                <button type="button" class="btn btn-outline-danger" @onclick="LoadAsync">Prøv igen</button>
+                <button type="button"
+                        class="btn btn-outline-danger"
+                        @onclick="LoadAsync">
+                    Prøv igen
+                </button>
             </div>
         }
         else if (items is not null)
         {
             @if (items.Count == 0)
             {
-                <p class="empty-state">Ingen godkendte timer i den valgte periode.</p>
+                <p class="empty-state">
+                    Ingen godkendte timer i den valgte periode.
+                </p>
             }
             else
             {
                 <p class="muted" aria-live="polite">
-                    @reportFrom.ToString("d. MMM yyyy", Culture) &ndash; @reportTo.ToString("d. MMM yyyy", Culture)
-                    &middot; @items.Count @(items.Count == 1 ? "ordre" : "ordrer")
-                    &middot; @FormatHours(items.Sum(item => item.TotalHours)) timer samlet for de viste ordrer
+                    @reportFrom.ToString("d. MMM yyyy", Culture)
+                    &ndash;
+                    @reportTo.ToString("d. MMM yyyy", Culture)
+                    &middot;
+                    @items.Count @(items.Count == 1 ? "ordre" : "ordrer")
+                    &middot;
+                    @FormatHours(items.Sum(item => item.TotalHours))
+                    timer samlet for de viste ordrer
+                </p>
+
+                <p class="muted">
+                    Hold musen over søjlerne for at se opgavefordelingen.
+                    Klik på en søjle for at se flere detaljer.
                 </p>
 
                 <div class="chart-card">
                     <div class="chart-host" @ref="chartHost"></div>
                 </div>
 
-                <table class="report-table">
-                    <caption class="visually-hidden">Top ordrer efter registrerede timer</caption>
-                    <thead>
-                        <tr><th scope="col">#</th><th scope="col">Ordre</th><th scope="col" class="num">Timer</th></tr>
-                    </thead>
-                    <tbody>
-                        @for (var i = 0; i < items.Count; i++)
-                        {
-                            <tr>
-                                <td>@(i + 1)</td>
-                                <td>@items[i].OrderName</td>
-                                <td class="num">@FormatHours(items[i].TotalHours)</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+                @if (selectedOrder is not null)
+                {
+                    <div class="report-table-section">
+                        <h2>@selectedOrder.OrderName</h2>
+
+                        <p class="muted">
+                            Opgavefordeling –
+                            @FormatHours(selectedOrder.TotalHours) timer samlet
+                        </p>
+
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Opgave</th>
+                                    <th scope="col" class="num">Timer</th>
+                                    <th scope="col" class="num">Andel</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var task in selectedOrder.Tasks)
+                                {
+                                    <tr>
+                                        <td>@task.TaskName</td>
+                                        <td class="num">
+                                            @FormatHours(task.TotalHours)
+                                        </td>
+                                        <td class="num">
+                                            @FormatHours(
+                                                selectedOrder.TotalHours > 0
+                                                    ? task.TotalHours / selectedOrder.TotalHours * 100
+                                                    : 0)%
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
             }
         }
     }
@@ -90,19 +150,36 @@
 @code {
     private static readonly CultureInfo Culture = new("da-DK");
 
-    private DateOnly fromDate = new(DateTime.Today.Year, DateTime.Today.Month, 1);
-    private DateOnly toDate = DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly fromDate =
+        new(DateTime.Today.Year, DateTime.Today.Month, 1);
+
+    private DateOnly toDate =
+        DateOnly.FromDateTime(DateTime.Today);
+
     private DateOnly reportFrom;
     private DateOnly reportTo;
+
     private IReadOnlyList<TopOrdersResponse>? items;
+
+    private TopOrdersResponse? selectedOrder;
+
     private bool isLoading;
     private bool renderPending;
+
     private string? loadError;
     private string? validationError;
+
     private ElementReference chartHost;
     private IJSObjectReference? chartModule;
 
-    private bool CanView => AuthState.User is { Role: "Manager" or "Admin", Status: "Active" };
+    private DotNetObjectReference<TopOrders>? dotNetReference;
+
+    private bool CanView =>
+        AuthState.User is
+        {
+            Role: "Manager" or "Admin",
+            Status: "Active"
+        };
 
     protected override async Task OnInitializedAsync()
     {
@@ -115,28 +192,50 @@
     private async Task LoadAsync()
     {
         validationError = null;
+
         if (toDate < fromDate)
         {
-            validationError = "Slutdatoen skal være den samme som eller efter startdatoen.";
+            validationError =
+                "Slutdatoen skal være den samme som eller efter startdatoen.";
             return;
         }
 
         isLoading = true;
         loadError = null;
-        var result = await ReportsApiClient.GetTopOrdersAsync(fromDate, toDate);
-        isLoading = false;
+        selectedOrder = null;
 
-        if (result.IsSuccess)
+        try
         {
-            items = result.Value!.Items;
-            reportFrom = fromDate;
-            reportTo = toDate;
-            renderPending = true;
+            var result = await ReportsApiClient.GetTopOrdersAsync(
+                fromDate,
+                toDate);
+
+            if (result.IsSuccess)
+            {
+                items = result.Value!.Items;
+                reportFrom = fromDate;
+                reportTo = toDate;
+                renderPending = true;
+            }
+            else
+            {
+                items = null;
+                renderPending = false;
+
+                loadError = string.Join(
+                    " ",
+                    result.Errors.Select(error => error.Message));
+            }
         }
-        else
+        catch (Exception)
         {
             items = null;
-            loadError = string.Join(" ", result.Errors.Select(error => error.Message));
+            renderPending = false;
+            loadError = "Der opstod en fejl ved hentning af rapporten.";
+        }
+        finally
+        {
+            isLoading = false;
         }
     }
 
@@ -148,18 +247,48 @@
         }
 
         renderPending = false;
-        chartModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/top-orders-chart.js");
-        await chartModule.InvokeVoidAsync("render", chartHost, items);
+
+        chartModule ??= await JS.InvokeAsync<IJSObjectReference>(
+            "import",
+            "./js/top-orders-chart.js");
+
+        dotNetReference ??= DotNetObjectReference.Create(this);
+
+        await chartModule.InvokeVoidAsync(
+            "render",
+            chartHost,
+            items,
+            dotNetReference);
     }
 
-    private static string FormatHours(decimal hours) => hours.ToString("0.##", Culture);
+    [JSInvokable]
+    public Task SelectOrder(string orderId)
+    {
+        if (Guid.TryParse(orderId, out var id))
+        {
+            selectedOrder = items?.FirstOrDefault(
+                item => item.OrderId == id);
+        }
+
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private static string FormatHours(decimal hours) =>
+        hours.ToString("0.##", Culture);
 
     public async ValueTask DisposeAsync()
     {
+        dotNetReference?.Dispose();
+
         if (chartModule is not null)
         {
-            try { await chartModule.DisposeAsync(); }
-            catch (JSDisconnectedException) { }
+            try
+            {
+                await chartModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
         }
     }
 }
