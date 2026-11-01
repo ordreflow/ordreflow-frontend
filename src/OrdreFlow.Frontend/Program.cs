@@ -27,5 +27,6 @@ builder.Services.AddScoped<BackendHealthClient>();
 builder.Services.AddScoped<OrdersApiClient>();
 builder.Services.AddScoped<TasksApiClient>();
 builder.Services.AddScoped<UsersApiClient>();
+builder.Services.AddScoped<ReportsApiClient>();
 
 await builder.Build().RunAsync();
