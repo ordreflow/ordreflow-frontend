@@ -10,6 +10,11 @@ public sealed record ExportTimeEntriesRequest(
     DateOnly FromDate,
     DateOnly ToDate);
 
+public sealed record DownloadedFile(
+    byte[] Content,
+    string FileName,
+    string ContentType);
+
 public sealed record TimeEntryResponse(
     Guid Id,
     Guid TaskId,

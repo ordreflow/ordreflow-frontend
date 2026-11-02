@@ -20,6 +20,7 @@
         @if (AuthState.User is { Role: "Admin" or "Manager", Status: "Active" })
         {
             <NavLink class="nav-link" href="time-entries/review">Godkend tid</NavLink>
+            <NavLink class="nav-link" href="time-entries/export">Eksporter tid</NavLink>
             <NavLink class="nav-link" href="orders">Ordrer</NavLink>
             <NavLink class="nav-link" href="reports/top-orders">Rapporter</NavLink>
         }

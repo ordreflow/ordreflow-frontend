@@ -17,6 +17,14 @@ public interface ITimeEntriesApiClient
 
     Task<ApiResult<TimeEntryResponse>> GetAsync(Guid id, CancellationToken cancellationToken = default);
 
+    // CSV of accepted and finalized entries in the period (Manager or Admin role),
+    // optionally for one employee only.
+    Task<ApiResult<DownloadedFile>> ExportAcceptedAsync(
+        DateOnly fromDate,
+        DateOnly toDate,
+        Guid? employeeId = null,
+        CancellationToken cancellationToken = default);
+
     // Decision is "accept" or "return"; a reason is required when returning.
     Task<ApiResult<bool>> ReviewAsync(
         Guid id,
