@@ -12,6 +12,9 @@ label { display: block; font-weight: 600; margin-bottom: .4rem; }
 .period { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
 .period .form-control { border-radius: .6rem; min-height: 2.75rem; }
 .validation-message { color: #b42318; }
+.employee-picker { display: grid; gap: .5rem; margin-bottom: 1rem; }
+.employee-picker label { margin-bottom: 0; }
+.employee-picker .form-control, .employee-picker .form-select { border-radius: .6rem; min-height: 2.75rem; }
 .export-btn { width: 100%; min-height: 3.25rem; font-size: 1.1rem; font-weight: 600; border-radius: var(--of-radius); }
 
 @media (max-width: 480px) {

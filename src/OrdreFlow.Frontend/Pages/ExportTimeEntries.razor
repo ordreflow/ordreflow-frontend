@@ -2,15 +2,16 @@
 @using System.Text
 @implements IAsyncDisposable
 @inject ITimeEntriesApiClient TimeEntriesApiClient
+@inject UsersApiClient UsersApiClient
 @inject AuthState AuthState
 @inject IJSRuntime JS
 
-<PageTitle>Eksportér tid | OrdreFlow</PageTitle>
+<PageTitle>Eksporter tid | OrdreFlow</PageTitle>
 
 <section class="export-page">
     <header class="export-header">
         <p class="eyebrow">Tidsregistreringer</p>
-        <h1>Eksportér tid</h1>
+        <h1>Eksporter tid</h1>
         <p class="muted">Download godkendte tidsregistreringer for en periode som en CSV-fil, der kan åbnes i fx Excel.</p>
     </header>
 
@@ -42,9 +43,31 @@
                 <p class="validation-message" role="alert">Til-datoen skal være samme dag som eller efter fra-datoen.</p>
             }
 
+            <div class="employee-picker">
+                <label for="employee-search">Medarbejder</label>
+                <input id="employee-search" type="search" class="form-control" placeholder="Søg efter navn eller e-mail..."
+                       disabled="@isExporting" @bind="employeeSearch" @bind:event="oninput" @bind:after="KeepSelectionVisible" />
+                <select id="employee-filter" class="form-select" aria-label="Vælg medarbejder"
+                        disabled="@isExporting" @bind="selectedEmployeeId">
+                    <option value="">Alle medarbejdere</option>
+                    @foreach (var employee in VisibleEmployees)
+                    {
+                        <option value="@employee.Id">@employee.Name</option>
+                    }
+                </select>
+                @if (employeesError is not null)
+                {
+                    <p class="muted mb-0">Medarbejderlisten kunne ikke hentes, men du kan stadig eksportere for alle. @employeesError</p>
+                }
+                else if (employeeSearch.Length > 0 && !VisibleEmployees.Any())
+                {
+                    <p class="muted mb-0">Ingen medarbejdere matcher søgningen.</p>
+                }
+            </div>
+
             <p class="muted">
-                Filen indeholder godkendte og afsluttede registreringer
-                @(AuthState.User?.Role == "Admin" ? "for alle medarbejdere." : "for dine medarbejdere.")
+                Filen indeholder godkendte og afsluttede registreringer for
+                @(SelectedEmployee?.Name ?? (AuthState.User?.Role == "Admin" ? "alle medarbejdere" : "alle dine medarbejdere")).
             </p>
 
             <button type="button" class="btn btn-primary export-btn" disabled="@(isExporting || !IsValidPeriod)" @onclick="ExportAsync">
@@ -70,13 +93,59 @@
     private string? error;
     private string? notice;
     private IJSObjectReference? downloadModule;
+    private IReadOnlyList<UserResponse> employees = [];
+    private string? employeesError;
+    private string employeeSearch = "";
+    private string selectedEmployeeId = "";
 
     // Same rule as the backend's ManagerOrAdmin policy.
     private bool CanExport => AuthState.User is { Role: "Manager" or "Admin", Status: "Active" };
 
     private bool IsValidPeriod => toDate >= fromDate;
 
-    protected override void OnInitialized() => ThisMonth();
+    private UserResponse? SelectedEmployee =>
+        employees.FirstOrDefault(employee => employee.Id.ToString() == selectedEmployeeId);
+
+    private IEnumerable<UserResponse> VisibleEmployees => employees.Where(employee =>
+        employee == SelectedEmployee ||
+        employee.Name.Contains(employeeSearch, StringComparison.OrdinalIgnoreCase) ||
+        employee.Email.Contains(employeeSearch, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        ThisMonth();
+        if (CanExport)
+        {
+            await LoadEmployeesAsync();
+        }
+    }
+
+    // Managers pick among their own employees (the export is limited to them anyway); admins among everyone.
+    private async Task LoadEmployeesAsync()
+    {
+        var result = await UsersApiClient.GetUsersAsync();
+        if (!result.IsSuccess)
+        {
+            employeesError = string.Join(" ", result.Errors.Select(item => item.Message));
+            return;
+        }
+
+        var me = AuthState.User!;
+        employees = result.Value!.Items
+            .Where(user => user.Id != me.Id && (me.Role == "Admin" || user.ManagerId == me.Id))
+            .OrderBy(user => user.Name)
+            .ToArray();
+    }
+
+    // When the search narrows the list to one person, select them so the dropdown matches what is shown.
+    private void KeepSelectionVisible()
+    {
+        var matches = VisibleEmployees.ToArray();
+        if (employeeSearch.Length > 0 && matches.Length == 1)
+        {
+            selectedEmployeeId = matches[0].Id.ToString();
+        }
+    }
 
     private void ThisMonth()
     {
@@ -97,7 +166,7 @@
         isExporting = true;
         error = notice = null;
 
-        var result = await TimeEntriesApiClient.ExportAcceptedAsync(fromDate, toDate);
+        var result = await TimeEntriesApiClient.ExportAcceptedAsync(fromDate, toDate, SelectedEmployee?.Id);
 
         if (!result.IsSuccess)
         {

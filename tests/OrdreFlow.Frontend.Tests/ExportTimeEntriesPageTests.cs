@@ -15,6 +15,9 @@ public sealed class ExportTimeEntriesPageTests : PageTestContext
     private const string Header = "Date,Employee,Order,Task,Hours,Comment,Status,EmployeeId,TaskId,TimeEntryId\r\n";
 
     private readonly BunitJSModuleInterop download;
+    private readonly UserResponse anna;
+    private readonly UserResponse bo;
+    private readonly UserResponse otherTeam;
 
     public ExportTimeEntriesPageTests()
     {
@@ -22,6 +25,53 @@ public sealed class ExportTimeEntriesPageTests : PageTestContext
         Services.AddScoped<ITimeEntriesApiClient, TimeEntriesApiClient>();
         download = JSInterop.SetupModule("./js/download-file.js");
         download.SetupVoid("downloadFile", _ => true).SetVoidResult();
+
+        anna = new UserResponse(Guid.NewGuid(), "Anna Andersen", "anna@example.com", "Employee", "Active", DateTime.UtcNow, Manager.Id);
+        bo = new UserResponse(Guid.NewGuid(), "Bo Berg", "bo@example.com", "Employee", "Active", DateTime.UtcNow, Manager.Id);
+        otherTeam = new UserResponse(Guid.NewGuid(), "David Dam", "david@example.com", "Employee", "Active", DateTime.UtcNow, Guid.NewGuid());
+        Api.Json("api/users", new ViewUsersResponse([Manager, anna, bo, otherTeam]));
+    }
+
+    [Fact]
+    public async Task ManagerCanPickAmongOwnEmployeesWithAllAsDefault()
+    {
+        var page = await RenderAsync(Manager);
+
+        page.WaitForAssertion(() =>
+        {
+            var options = page.FindAll("#employee-filter option").Select(option => option.TextContent).ToArray();
+            Assert.Equal(["Alle medarbejdere", "Anna Andersen", "Bo Berg"], options);
+            Assert.Equal("", page.Find("#employee-filter").GetAttribute("value"));
+        });
+    }
+
+    [Fact]
+    public async Task SearchNarrowsTheListAndExportUsesTheChosenEmployee()
+    {
+        Api.File(ExportPath, Encoding.UTF8.GetBytes(Header + "2026-10-05,Bo Berg,O,T,2,,Accepted,a,b,c\r\n"),
+            "text/csv", "bo.csv");
+        var page = await RenderAsync(Manager);
+        page.WaitForAssertion(() => Assert.Equal(3, page.FindAll("#employee-filter option").Count));
+
+        page.Find("#employee-search").Input("bo@");
+
+        Assert.Equal(["Alle medarbejdere", "Bo Berg"],
+            page.FindAll("#employee-filter option").Select(option => option.TextContent));
+        Assert.Contains("for Bo Berg", System.Text.RegularExpressions.Regex.Replace(page.Markup, @"\s+", " "));
+
+        page.Find(".export-btn").Click();
+
+        page.WaitForAssertion(() => Assert.Contains(Api.RequestUris,
+            uri => uri.StartsWith("/api/time_entries/export?") && uri.EndsWith($"&EmployeeId={bo.Id:D}")));
+    }
+
+    [Fact]
+    public async Task AdminCanPickAnyEmployee()
+    {
+        var page = await RenderAsync(Manager with { Role = "Admin" });
+
+        page.WaitForAssertion(() => Assert.Equal(["Alle medarbejdere", "Anna Andersen", "Bo Berg", "David Dam"],
+            page.FindAll("#employee-filter option").Select(option => option.TextContent)));
     }
 
     [Fact]

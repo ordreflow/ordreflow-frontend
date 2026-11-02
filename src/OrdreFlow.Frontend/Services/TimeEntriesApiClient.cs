@@ -33,12 +33,14 @@ public class TimeEntriesApiClient(HttpClient httpClient) : ITimeEntriesApiClient
     public Task<ApiResult<DownloadedFile>> ExportAcceptedAsync(
         DateOnly fromDate,
         DateOnly toDate,
+        Guid? employeeId = null,
         CancellationToken cancellationToken = default)
     {
         var from = fromDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var to = toDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var employee = employeeId is Guid id ? $"&EmployeeId={id:D}" : "";
         return ApiResponse.ReadFileAsync(
-            () => httpClient.GetAsync($"api/time_entries/export?FromDate={from}&ToDate={to}", cancellationToken),
+            () => httpClient.GetAsync($"api/time_entries/export?FromDate={from}&ToDate={to}{employee}", cancellationToken),
             $"time-entries-{fromDate:yyyyMMdd}-{toDate:yyyyMMdd}.csv",
             cancellationToken);
     }

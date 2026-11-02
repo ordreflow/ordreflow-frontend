@@ -57,6 +57,7 @@
     font-weight: 700;
     font-size: 0.95rem;
     text-decoration: none;
+    flex-shrink: 0;
 }
 
 /* Mobile: links drop down under the header */
@@ -83,6 +84,7 @@
         color: var(--of-text);
         font-weight: 500;
         text-decoration: none;
+        white-space: nowrap;
     }
 
         .nav-links ::deep .nav-link:hover {
@@ -94,10 +96,17 @@
             color: var(--of-primary);
         }
 
-/* Desktop: links sit inline in the header */
 @media (min-width: 900px) {
     .header-inner {
         padding: 0 2rem;
+    }
+}
+
+/* Wide screens: links sit inline in the header. Managers and admins have many links,
+   so narrower screens keep the menu button instead of wrapping the links. */
+@media (min-width: 1280px) {
+    .header-inner {
+        max-width: 90rem;
     }
 
     .menu-toggle {
@@ -122,11 +131,12 @@
     }
 
         .nav-links ::deep .nav-link {
-            padding: 0.5rem 0.9rem;
+            padding: 0.5rem 0.75rem;
         }
 }
 
 .nav-user {
+    white-space: nowrap;
     padding: 0.75rem 1rem 0.25rem;
     color: var(--of-muted);
     font-size: 0.9rem;
@@ -142,13 +152,14 @@
     font-weight: 500;
     text-align: left;
     cursor: pointer;
+    white-space: nowrap;
 }
 
     .nav-logout:hover {
         background: var(--of-bg);
     }
 
-@media (min-width: 900px) {
+@media (min-width: 1280px) {
     .nav-user {
         align-self: center;
         padding: 0 0.5rem 0 0.9rem;
