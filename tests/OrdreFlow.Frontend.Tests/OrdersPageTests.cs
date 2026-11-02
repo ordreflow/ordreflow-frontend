@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Bunit;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using OrdreFlow.Frontend.Models;
 using OrdreFlow.Frontend.Pages;
@@ -44,6 +45,28 @@ public sealed class OrdersPageTests : PageTestContext
         page.FindAll("dialog button").Single(button => button.TextContent.Trim() == "Gå til opgaver").Click();
 
         Assert.EndsWith($"/tasks?orderId={order.Id}", Services.GetRequiredService<NavigationManager>().Uri);
+    }
+
+    [Fact]
+    public void DetailsPopupOpensWithoutJavaScriptAndClosesWithEscapeOrBackdrop()
+    {
+        var order = new OrderResponse(Guid.NewGuid(), "Order", "Open", DateTime.UtcNow, null);
+        Api.Json("api/orders", new ViewOrdersResponse([order]));
+        Api.Json($"api/orders/{order.Id}", order);
+        var page = RenderComponent<Orders>();
+
+        page.WaitForElement(".order-row").Click();
+        page.WaitForElement(".order-metadata");
+        Assert.True(page.Find("dialog").HasAttribute("open"));
+        Assert.DoesNotContain(JSInterop.Invocations, invocation => invocation.Identifier == "import");
+
+        page.Find("dialog").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        Assert.Empty(page.FindAll("dialog"));
+
+        page.Find(".order-row").Click();
+        page.WaitForElement(".order-metadata");
+        page.Find(".dialog-backdrop").Click();
+        Assert.Empty(page.FindAll("dialog"));
     }
 
     [Fact]

@@ -3,7 +3,6 @@
 @inject OrdersApiClient OrdersApiClient
 @inject UsersApiClient UsersApiClient
 @inject AuthState AuthState
-@inject IJSRuntime JS
 @inject NavigationManager Navigation
 
 <PageTitle>Ordrer | OrdreFlow</PageTitle>
@@ -85,8 +84,10 @@
 
 @if (dialogOpen)
 {
-    <dialog @ref="dialog" class="order-dialog" aria-labelledby="order-dialog-title"
-            @oncancel="CloseDialog" @oncancel:preventDefault="true">
+    @* Shown by Blazor instead of showModal(), which older iPhones (iOS < 15.4) don't support. *@
+    <div class="dialog-backdrop" @onclick="CloseDialog"></div>
+    <dialog open @ref="dialog" class="order-dialog" aria-modal="true" aria-labelledby="order-dialog-title"
+            tabindex="-1" @onkeydown="CloseOnEscape">
         <header class="dialog-header">
             <h2 id="order-dialog-title">@(isCreating ? "Opret ordre" : "Ordredetaljer")</h2>
             <button class="close-button" type="button" aria-label="Luk" disabled="@isBusy" @onclick="CloseDialog">&times;</button>
@@ -187,7 +188,6 @@
     private bool detailsStale;
     private int detailRequest;
     private ElementReference dialog;
-    private IJSObjectReference? dialogModule;
 
     private bool CanManageOrders => AuthState.User is { Role: "Manager" or "Admin", Status: "Active" };
     private IEnumerable<OrderResponse> VisibleOrders => orders
@@ -202,9 +202,13 @@
         if (showDialog)
         {
             showDialog = false;
-            dialogModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/users-dialog.js");
-            await dialogModule.InvokeVoidAsync("show", dialog);
+            await dialog.FocusAsync();
         }
+    }
+
+    private void CloseOnEscape(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") CloseDialog();
     }
 
     private async Task LoadAsync()
@@ -341,10 +345,9 @@
     private static string Errors<T>(ApiResult<T> result) => string.Join(" ", result.Errors.Select(error => error.Message));
     private static string StatusName(string status) => status switch { "Open" => "Åben", "Closed" => "Afsluttet", _ => status };
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         detailRequest++;
-        if (dialogModule is not null)
-            await dialogModule.DisposeAsync();
+        return ValueTask.CompletedTask;
     }
 }

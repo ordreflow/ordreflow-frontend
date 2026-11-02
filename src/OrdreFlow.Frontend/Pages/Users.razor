@@ -1,8 +1,6 @@
 @page "/users"
-@implements IAsyncDisposable
 @inject UsersApiClient UsersApiClient
 @inject AuthState AuthState
-@inject IJSRuntime JS
 
 <PageTitle>Brugere | OrdreFlow</PageTitle>
 
@@ -99,8 +97,10 @@
 
 @if (dialogOpen)
 {
-    <dialog @ref="dialog" class="user-dialog" aria-labelledby="user-dialog-title"
-            @oncancel="CloseDialog" @oncancel:preventDefault="true">
+    @* Shown by Blazor instead of showModal(), which older iPhones (iOS < 15.4) don't support. *@
+    <div class="dialog-backdrop" @onclick="CloseDialog"></div>
+    <dialog open @ref="dialog" class="user-dialog" aria-modal="true" aria-labelledby="user-dialog-title"
+            tabindex="-1" @onkeydown="CloseOnEscape">
         <header class="dialog-header">
             <h2 id="user-dialog-title">@(isCreating ? "Opret bruger" : "Brugerdetaljer")</h2>
             <button class="close-button" type="button" aria-label="Luk" disabled="@isBusy" @onclick="CloseDialog">&times;</button>
@@ -270,7 +270,6 @@
     private bool showDialog;
     private bool confirmDelete;
     private ElementReference dialog;
-    private IJSObjectReference? dialogModule;
 
     private bool IsAdmin => AuthState.User is { Status: "Active", Role: "Admin" };
     private bool CanManage => AuthState.User is { Status: "Active", Role: "Admin" or "Manager" };
@@ -293,9 +292,13 @@
         if (showDialog)
         {
             showDialog = false;
-            dialogModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/users-dialog.js");
-            await dialogModule.InvokeVoidAsync("show", dialog);
+            await dialog.FocusAsync();
         }
+    }
+
+    private void CloseOnEscape(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") CloseDialog();
     }
 
     private async Task LoadAsync()
@@ -484,10 +487,4 @@
     private static string RoleName(string role) => role switch { "Admin" => "Administrator", "Manager" => "Leder", "Employee" => "Medarbejder", _ => role };
     private static string StatusName(string status) => status switch { "Active" => "Aktiv", "Inactive" => "Inaktiv", _ => status };
     private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => char.ToUpperInvariant(part[0])));
-
-    public async ValueTask DisposeAsync()
-    {
-        if (dialogModule is not null)
-            await dialogModule.DisposeAsync();
-    }
 }
