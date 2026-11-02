@@ -17,7 +17,6 @@ public abstract class PageTestContext : TestContext
     protected PageTestContext()
     {
         JSInterop.SetupVoid("localStorage.setItem", _ => true).SetVoidResult();
-        JSInterop.SetupModule("./js/users-dialog.js").SetupVoid("show", _ => true).SetVoidResult();
         Services.AddSingleton(new HttpClient(Api) { BaseAddress = new Uri("https://localhost/") });
         Services.AddScoped<AuthState>();
         Services.AddScoped<UsersApiClient>();

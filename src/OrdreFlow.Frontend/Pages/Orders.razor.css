@@ -16,8 +16,10 @@ label { display: block; font-weight: 600; margin-bottom: .4rem; }
 .status-badge.open { background: #e5f4eb; color: #22643b; }
 .arrow { font-size: 1.75rem; color: var(--of-muted); }
 .empty-state { padding: 3rem 1rem; text-align: center; border: 1px dashed var(--of-border); border-radius: var(--of-radius); background: var(--of-surface); }
-.order-dialog { border: 0; border-radius: var(--of-radius); padding: 1.5rem; width: min(600px, calc(100% - 1.5rem)); max-height: 90dvh; overflow-y: auto; color: var(--of-text); box-shadow: 0 20px 70px #0003; }
-.order-dialog::backdrop { background: #101b2c99; }
+/* The popup is positioned by CSS instead of showModal(), so it also works on older iPhones. */
+.dialog-backdrop { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 30; background: #101b2c99; }
+.order-dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 31; display: block; margin: 0; border: 0; border-radius: var(--of-radius); padding: 1.5rem; width: min(600px, calc(100% - 1.5rem)); max-height: 90vh; max-height: 90dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; background: var(--of-surface); color: var(--of-text); box-shadow: 0 20px 70px #0003; }
+.order-dialog:focus { outline: none; }
 .dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
 .dialog-header h2 { font-size: 1.4rem; margin: 0; font-weight: 700; }
 .close-button { background: transparent; border: 0; font-size: 1.75rem; line-height: 1; padding: .4rem; }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Bunit;
+using Microsoft.AspNetCore.Components.Web;
 using OrdreFlow.Frontend.Models;
 using OrdreFlow.Frontend.Pages;
 using Xunit;
@@ -76,6 +77,28 @@ public sealed class UsersPageTests : PageTestContext
         Assert.Empty(page.FindAll(".user-dialog form"));
         Assert.Empty(page.FindAll(".admin-section"));
         Assert.Empty(page.FindAll(".danger-zone"));
+    }
+
+    [Fact]
+    public void DetailsPopupOpensWithoutJavaScriptAndClosesWithEscapeOrBackdrop()
+    {
+        var employee = Manager with { Id = Guid.NewGuid(), Name = "Employee", Email = "employee@example.com", Role = "Employee" };
+        Api.Json("api/users", new ViewUsersResponse([Manager, employee]));
+        Api.Json($"api/users/{employee.Id}", employee);
+        var page = RenderComponent<Users>();
+
+        page.WaitForElement(".user-card").Click();
+        page.WaitForElement(".user-metadata");
+        Assert.True(page.Find(".user-dialog").HasAttribute("open"));
+        Assert.DoesNotContain(JSInterop.Invocations, invocation => invocation.Identifier == "import");
+
+        page.Find(".user-dialog").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        Assert.Empty(page.FindAll(".user-dialog"));
+
+        page.Find(".user-card").Click();
+        page.WaitForElement(".user-metadata");
+        page.Find(".dialog-backdrop").Click();
+        Assert.Empty(page.FindAll(".user-dialog"));
     }
 
     [Fact]
