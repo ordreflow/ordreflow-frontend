@@ -1,0 +1,19 @@
+.export-page { max-width: 40rem; margin: 0 auto 2rem; }
+.export-header { margin-bottom: 1.5rem; }
+.export-header h1 { font-size: 2rem; font-weight: 700; margin-bottom: .25rem; }
+.export-header p:last-child { margin: 0; }
+.eyebrow { color: var(--of-primary); text-transform: uppercase; letter-spacing: .1em; font-size: .75rem; font-weight: 700; margin-bottom: .4rem; }
+.muted { color: var(--of-muted); font-size: .9rem; }
+label { display: block; font-weight: 600; margin-bottom: .4rem; }
+
+.export-card { padding: 1.25rem; background: var(--of-surface); border: 1px solid var(--of-border); border-radius: var(--of-radius); box-shadow: var(--of-shadow); }
+.presets { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.presets .btn { border-radius: 2rem; }
+.period { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+.period .form-control { border-radius: .6rem; min-height: 2.75rem; }
+.validation-message { color: #b42318; }
+.export-btn { width: 100%; min-height: 3.25rem; font-size: 1.1rem; font-weight: 600; border-radius: var(--of-radius); }
+
+@media (max-width: 480px) {
+    .period { grid-template-columns: 1fr; }
+}

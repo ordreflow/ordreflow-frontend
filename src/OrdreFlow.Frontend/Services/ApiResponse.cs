@@ -58,6 +58,38 @@ internal static class ApiResponse
         }
     }
 
+    // For endpoints that return a file (e.g. CSV) instead of JSON.
+    public static async Task<ApiResult<DownloadedFile>> ReadFileAsync(
+        Func<Task<HttpResponseMessage>> send,
+        string fallbackFileName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await send();
+            if (!response.IsSuccessStatusCode)
+            {
+                return ApiResult<DownloadedFile>.Failure(await ReadErrorsAsync(response, cancellationToken));
+            }
+
+            var content = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            var disposition = response.Content.Headers.ContentDisposition;
+            var fileName = (disposition?.FileNameStar ?? disposition?.FileName)?.Trim('"');
+            return ApiResult<DownloadedFile>.Success(new DownloadedFile(
+                content,
+                string.IsNullOrWhiteSpace(fileName) ? fallbackFileName : fileName,
+                response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream"));
+        }
+        catch (HttpRequestException)
+        {
+            return ApiResult<DownloadedFile>.Failure([new ApiError("network_error", "Could not reach the server.")]);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return ApiResult<DownloadedFile>.Failure([new ApiError("timeout", "The server did not respond in time.")]);
+        }
+    }
+
     private static async Task<IReadOnlyList<ApiError>> ReadErrorsAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
