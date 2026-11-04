@@ -53,3 +53,4 @@ jobs:
 
       - name: Push frontend image
         run: docker push "$IMAGE_NAME:$IMAGE_TAG"
+ 
