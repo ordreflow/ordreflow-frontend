@@ -1,45 +1,109 @@
 @implements IDisposable
 @inject AuthState AuthState
 
-<div class="header-inner">
-    <button type="button"
-            class="menu-toggle"
-            title="Menu"
-            aria-label="Menu"
-            aria-expanded="@(collapseNavMenu ? "false" : "true")"
-            @onclick="ToggleNavMenu">
-        <span></span><span></span><span></span>
-    </button>
+<div class="sidebar-inner">
+    <div class="sidebar-top">
+        <a class="sidebar-brand" href="">
+            <span class="brand-logo" aria-hidden="true">OF</span>
+            <span>OrdreFlow</span>
+        </a>
+        @if (OnClose.HasDelegate)
+        {
+            <button type="button" class="sidebar-close" aria-label="Luk menu" @onclick="OnClose">
+                <NavIcon Name="close" />
+            </button>
+        }
+    </div>
 
-    <a class="brand" href="">OrdreFlow</a>
+    <nav class="sidebar-nav" aria-label="Hovedmenu">
+        <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
+            <NavIcon Name="home" /><span>Overblik</span>
+        </NavLink>
 
-    <nav class="nav-links @NavMenuCssClass" @onclick="CloseNavMenu">
-        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Forside</NavLink>
-        <NavLink class="nav-link" href="register-time">Registrer tid</NavLink>
-        <NavLink class="nav-link" href="time-entries" Match="NavLinkMatch.All">Tidsregistreringer</NavLink>
-        @if (AuthState.User is { Role: "Admin" or "Manager", Status: "Active" })
+        @foreach (var group in Groups)
         {
-            <NavLink class="nav-link" href="time-entries/review">Godkend tid</NavLink>
-            <NavLink class="nav-link" href="time-entries/export">Eksporter tid</NavLink>
-            <NavLink class="nav-link" href="orders">Ordrer</NavLink>
-            <NavLink class="nav-link" href="reports/top-orders">Rapporter</NavLink>
+            var isOpen = !collapsedGroups.Contains(group.Title);
+
+            <div class="nav-group">
+                <button type="button" class="nav-group-toggle" aria-expanded="@(isOpen ? "true" : "false")"
+                        @onclick="() => ToggleGroup(group.Title)">
+                    <span>@group.Title</span>
+                    <NavIcon Name="chevron" Class="@(isOpen ? "chevron open" : "chevron")" />
+                </button>
+
+                @if (isOpen)
+                {
+                    <div class="nav-group-items">
+                        @foreach (var item in group.Items)
+                        {
+                            <NavLink class="nav-item" href="@item.Href"
+                                     Match="@(item.ExactMatch ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                                <NavIcon Name="@item.Icon" /><span>@item.Label</span>
+                            </NavLink>
+                        }
+                    </div>
+                }
+            </div>
         }
-        @if (AuthState.User?.Role is "Admin" or "Manager")
-        {
-            <NavLink class="nav-link" href="users">Brugere</NavLink>
-        }
-        @if (AuthState.User is not null)
-        {
-            <span class="nav-user">@AuthState.User.Name</span>
-        }
-        <button type="button" class="nav-logout" @onclick="SignOut">Log ud</button>
     </nav>
 
-    <a class="brand-logo" href="" aria-label="OrdreFlow forside">OF</a>
+    @if (AuthState.User is { } user)
+    {
+        <div class="sidebar-user">
+            <span class="user-avatar" aria-hidden="true">@Initials(user.Name)</span>
+            <span class="user-info">
+                <span class="user-name">@user.Name</span>
+                <span class="user-role">@RoleName(user.Role)</span>
+            </span>
+            <button type="button" class="logout-btn" title="Log ud" aria-label="Log ud" @onclick="SignOut">
+                <NavIcon Name="logout" />
+            </button>
+        </div>
+    }
 </div>
 
 @code {
-    private bool collapseNavMenu = true;
+    // Set by the layout when the menu is shown as a drawer on small screens.
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private readonly HashSet<string> collapsedGroups = [];
+
+    private sealed record NavItem(string Href, string Label, string Icon, bool ExactMatch = false);
+
+    private sealed record NavGroup(string Title, IReadOnlyList<NavItem> Items);
+
+    // Same role rules as the pages and the API: management pages need an active manager or admin.
+    private IEnumerable<NavGroup> Groups
+    {
+        get
+        {
+            yield return new NavGroup("Min tid",
+            [
+                new NavItem("register-time", "Registrer tid", "plus"),
+                new NavItem("time-entries", "Mine registreringer", "list", ExactMatch: true)
+            ]);
+
+            if (AuthState.User is { Role: "Admin" or "Manager", Status: "Active" })
+            {
+                yield return new NavGroup("Ledelse",
+                [
+                    new NavItem("time-entries/review", "Godkend tid", "check"),
+                    new NavItem("time-entries/export", "Eksporter tid", "download"),
+                    new NavItem("orders", "Ordrer", "briefcase"),
+                    new NavItem("reports/top-orders", "Rapporter", "chart")
+                ]);
+            }
+
+            if (AuthState.User?.Role is "Admin" or "Manager")
+            {
+                yield return new NavGroup("Administration",
+                [
+                    new NavItem("users", "Brugere", "users")
+                ]);
+            }
+        }
+    }
 
     // The profile name arrives after the session is restored from storage, so redraw when it changes.
     protected override void OnInitialized() => AuthState.Changed += OnAuthChanged;
@@ -48,17 +112,26 @@
 
     public void Dispose() => AuthState.Changed -= OnAuthChanged;
 
-    private string? NavMenuCssClass => collapseNavMenu ? "collapsed" : null;
-
-    private void ToggleNavMenu()
+    private void ToggleGroup(string title)
     {
-        collapseNavMenu = !collapseNavMenu;
+        if (!collapsedGroups.Remove(title))
+        {
+            collapsedGroups.Add(title);
+        }
     }
 
-    private void CloseNavMenu()
+    private static string RoleName(string role) => role switch
     {
-        collapseNavMenu = true;
-    }
+        "Admin" => "Administrator",
+        "Manager" => "Leder",
+        "Employee" => "Medarbejder",
+        _ => role
+    };
+
+    private static string Initials(string name) => string.Concat(name
+        .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+        .Take(2)
+        .Select(part => char.ToUpperInvariant(part[0])));
 
     // MainLayout redirects to the login page when the session ends.
     private async Task SignOut() => await AuthState.SignOutAsync();

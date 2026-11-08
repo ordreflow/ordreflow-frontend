@@ -1,171 +1,228 @@
-.header-inner {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    max-width: 68rem;
-    height: 4rem;
-    margin: 0 auto;
-    padding: 0 1rem;
-}
-
-/* Three vertical dots, like the wireframe */
-.menu-toggle {
+.sidebar-inner {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 0.25rem;
-    width: 2.5rem;
-    height: 2.5rem;
-    border: none;
-    border-radius: 50%;
-    background: transparent;
-    cursor: pointer;
-    transition: background-color 0.15s;
+    height: 100%;
 }
 
-    .menu-toggle span {
-        width: 0.35rem;
-        height: 0.35rem;
-        border-radius: 50%;
-        background: var(--of-muted);
-    }
+/* Brand */
 
-    .menu-toggle:hover,
-    .menu-toggle[aria-expanded="true"] {
-        background: var(--of-primary-soft);
-    }
+.sidebar-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 1.1rem 1rem 1rem 1.25rem;
+}
 
-.brand {
-    flex: 1;
-    font-size: 1.4rem;
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    color: var(--of-text);
+    font-size: 1.2rem;
     font-weight: 700;
     letter-spacing: -0.01em;
-    color: var(--of-text);
     text-decoration: none;
 }
 
 .brand-logo {
     display: grid;
     place-items: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 0.75rem;
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.7rem;
     background: linear-gradient(135deg, var(--of-primary), #0f4c8a);
     color: #fff;
+    font-size: 0.85rem;
     font-weight: 700;
-    font-size: 0.95rem;
-    text-decoration: none;
-    flex-shrink: 0;
 }
 
-/* Mobile: links drop down under the header */
-.nav-links {
-    position: absolute;
-    top: calc(100% + 1px);
-    left: 0;
-    right: 0;
-    display: flex;
-    flex-direction: column;
-    padding: 0.5rem 1rem 1rem;
-    background: var(--of-surface);
-    border-bottom: 1px solid var(--of-border);
-    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+.sidebar-close {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: none;
+    border-radius: 0.6rem;
+    background: transparent;
+    color: var(--of-muted);
+    cursor: pointer;
 }
 
-    .nav-links.collapsed {
-        display: none;
+    .sidebar-close:hover {
+        background: var(--of-bg);
+        color: var(--of-text);
     }
 
-    .nav-links ::deep .nav-link {
-        padding: 0.75rem 1rem;
-        border-radius: 0.6rem;
+/* Links and groups */
+
+.sidebar-nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.25rem 0.75rem 1rem;
+}
+
+    .sidebar-nav ::deep .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        min-height: 2.6rem;
+        padding: 0.45rem 0.75rem;
+        margin-bottom: 0.15rem;
+        border-radius: 0.65rem;
         color: var(--of-text);
         font-weight: 500;
         text-decoration: none;
         white-space: nowrap;
+        transition: background-color 0.15s, color 0.15s;
     }
 
-        .nav-links ::deep .nav-link:hover {
+        .sidebar-nav ::deep .nav-item:hover {
             background: var(--of-bg);
         }
 
-        .nav-links ::deep .nav-link.active {
+        .sidebar-nav ::deep .nav-item.active {
             background: var(--of-primary-soft);
+            color: var(--of-primary);
+            font-weight: 600;
+        }
+
+        .sidebar-nav ::deep .nav-item .nav-icon {
+            flex-shrink: 0;
+            color: var(--of-muted);
+        }
+
+        .sidebar-nav ::deep .nav-item.active .nav-icon {
             color: var(--of-primary);
         }
 
-@media (min-width: 900px) {
-    .header-inner {
-        padding: 0 2rem;
-    }
+.nav-group {
+    margin-top: 1rem;
 }
 
-/* Wide screens: links sit inline in the header. Managers and admins have many links,
-   so narrower screens keep the menu button instead of wrapping the links. */
-@media (min-width: 1280px) {
-    .header-inner {
-        max-width: 90rem;
-    }
-
-    .menu-toggle {
-        display: none;
-    }
-
-    .brand {
-        flex: 0 0 auto;
-    }
-
-    .nav-links,
-    .nav-links.collapsed {
-        position: static;
-        display: flex;
-        flex-direction: row;
-        gap: 0.25rem;
-        margin-left: auto;
-        padding: 0;
-        background: none;
-        border: none;
-        box-shadow: none;
-    }
-
-        .nav-links ::deep .nav-link {
-            padding: 0.5rem 0.75rem;
-        }
-}
-
-.nav-user {
-    white-space: nowrap;
-    padding: 0.75rem 1rem 0.25rem;
+.nav-group-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.35rem 0.75rem;
+    margin-bottom: 0.25rem;
+    border: none;
+    border-radius: 0.5rem;
+    background: transparent;
     color: var(--of-muted);
-    font-size: 0.9rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
 }
 
-.nav-logout {
-    padding: 0.75rem 1rem;
+    .nav-group-toggle:hover {
+        color: var(--of-text);
+    }
+
+    .nav-group-toggle ::deep .chevron {
+        width: 16px;
+        height: 16px;
+        transform: rotate(-90deg);
+        transition: transform 0.15s;
+    }
+
+        .nav-group-toggle ::deep .chevron.open {
+            transform: none;
+        }
+
+/* Signed-in user */
+
+.sidebar-user {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin: 0 0.75rem 0.75rem;
+    padding: 0.65rem 0.5rem 0.65rem 0.65rem;
+    border: 1px solid var(--of-border);
+    border-radius: 0.85rem;
+    background: var(--of-bg);
+}
+
+.user-avatar {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    background: var(--of-primary-soft);
+    color: var(--of-primary);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.user-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.user-name {
+    overflow: hidden;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-role {
+    color: var(--of-muted);
+    font-size: 0.78rem;
+}
+
+.logout-btn {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
     border: none;
     border-radius: 0.6rem;
     background: transparent;
-    color: var(--of-text);
-    font: inherit;
-    font-weight: 500;
-    text-align: left;
+    color: var(--of-muted);
     cursor: pointer;
-    white-space: nowrap;
 }
 
-    .nav-logout:hover {
-        background: var(--of-bg);
+    .logout-btn:hover {
+        background: #fde8ea;
+        color: #a12632;
     }
 
-@media (min-width: 1280px) {
-    .nav-user {
-        align-self: center;
-        padding: 0 0.5rem 0 0.9rem;
+/* Phones: every tap target at least 44px high, as recommended for touch. */
+@media (max-width: 899.98px) {
+    .sidebar-nav ::deep .nav-item {
+        min-height: 2.75rem;
+        font-size: 1.02rem;
     }
 
-    .nav-logout {
-        padding: 0.5rem 0.9rem;
+    .nav-group-toggle {
+        min-height: 2.75rem;
+        font-size: 0.75rem;
+    }
+
+    .sidebar-close,
+    .logout-btn {
+        width: 2.75rem;
+        height: 2.75rem;
+    }
+
+    .sidebar-user {
+        margin-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    }
+}
+
+@media (min-width: 900px) {
+    .sidebar-close {
+        display: none;
     }
 }
