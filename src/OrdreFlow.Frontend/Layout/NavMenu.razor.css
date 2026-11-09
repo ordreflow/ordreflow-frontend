@@ -18,9 +18,10 @@
     display: flex;
     align-items: center;
     gap: 0.65rem;
-    color: var(--of-text);
-    font-size: 1.2rem;
-    font-weight: 700;
+    color: #fff;
+    font-family: var(--of-font-display);
+    font-size: 1.3rem;
+    font-weight: 600;
     letter-spacing: -0.01em;
     text-decoration: none;
 }
@@ -32,9 +33,10 @@
     width: 2.25rem;
     height: 2.25rem;
     border-radius: 0.7rem;
-    background: linear-gradient(135deg, var(--of-primary), #0f4c8a);
+    background: var(--of-gradient);
     color: #fff;
     font-size: 0.85rem;
+    box-shadow: 0 0 14px rgba(99, 102, 241, 0.35);
     font-weight: 700;
 }
 
@@ -46,13 +48,13 @@
     border: none;
     border-radius: 0.6rem;
     background: transparent;
-    color: var(--of-muted);
+    color: rgba(255, 255, 255, 0.7);
     cursor: pointer;
 }
 
     .sidebar-close:hover {
-        background: var(--of-bg);
-        color: var(--of-text);
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
     }
 
 /* Links and groups */
@@ -70,8 +72,8 @@
         min-height: 2.6rem;
         padding: 0.45rem 0.75rem;
         margin-bottom: 0.15rem;
-        border-radius: 0.65rem;
-        color: var(--of-text);
+        border-radius: 0.6rem;
+        color: rgba(255, 255, 255, 0.82);
         font-weight: 500;
         text-decoration: none;
         white-space: nowrap;
@@ -79,22 +81,24 @@
     }
 
         .sidebar-nav ::deep .nav-item:hover {
-            background: var(--of-bg);
+            background: rgba(255, 255, 255, 0.07);
+            color: #fff;
         }
 
         .sidebar-nav ::deep .nav-item.active {
-            background: var(--of-primary-soft);
-            color: var(--of-primary);
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.32), rgba(6, 182, 212, 0.12));
+            color: #fff;
             font-weight: 600;
+            box-shadow: inset 3px 0 0 var(--of-accent), 0 0 0 1px rgba(99, 102, 241, 0.35);
         }
 
         .sidebar-nav ::deep .nav-item .nav-icon {
             flex-shrink: 0;
-            color: var(--of-muted);
+            color: rgba(255, 255, 255, 0.55);
         }
 
         .sidebar-nav ::deep .nav-item.active .nav-icon {
-            color: var(--of-primary);
+            color: var(--of-accent);
         }
 
 .nav-group {
@@ -111,16 +115,15 @@
     border: none;
     border-radius: 0.5rem;
     background: transparent;
-    color: var(--of-muted);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0;
     cursor: pointer;
 }
 
     .nav-group-toggle:hover {
-        color: var(--of-text);
+        color: rgba(255, 255, 255, 0.85);
     }
 
     .nav-group-toggle ::deep .chevron {
@@ -142,9 +145,9 @@
     gap: 0.65rem;
     margin: 0 0.75rem 0.75rem;
     padding: 0.65rem 0.5rem 0.65rem 0.65rem;
-    border: 1px solid var(--of-border);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 0.85rem;
-    background: var(--of-bg);
+    background: rgba(255, 255, 255, 0.06);
 }
 
 .user-avatar {
@@ -154,8 +157,8 @@
     width: 2.25rem;
     height: 2.25rem;
     border-radius: 50%;
-    background: var(--of-primary-soft);
-    color: var(--of-primary);
+    background: var(--of-gradient);
+    color: #fff;
     font-size: 0.8rem;
     font-weight: 700;
 }
@@ -169,6 +172,7 @@
 
 .user-name {
     overflow: hidden;
+    color: #fff;
     font-size: 0.9rem;
     font-weight: 600;
     text-overflow: ellipsis;
@@ -176,7 +180,7 @@
 }
 
 .user-role {
-    color: var(--of-muted);
+    color: rgba(255, 255, 255, 0.6);
     font-size: 0.78rem;
 }
 
@@ -189,13 +193,13 @@
     border: none;
     border-radius: 0.6rem;
     background: transparent;
-    color: var(--of-muted);
+    color: rgba(255, 255, 255, 0.7);
     cursor: pointer;
 }
 
     .logout-btn:hover {
-        background: #fde8ea;
-        color: #a12632;
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
     }
 
 /* Phones: every tap target at least 44px high, as recommended for touch. */

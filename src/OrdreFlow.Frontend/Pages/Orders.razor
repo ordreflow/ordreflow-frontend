@@ -73,7 +73,7 @@
                                 <span class="muted">Oprettet @order.CreatedAt.ToString("dd.MM.yyyy")</span>
                             </span>
                             <span class="status-badge @(order.Status == "Open" ? "open" : "")">@StatusName(order.Status)</span>
-                            <span class="arrow" aria-hidden="true">&rsaquo;</span>
+                            <span class="arrow" aria-hidden="true"><NavIcon Name="chevron-right" /></span>
                         </button>
                     </li>
                 }

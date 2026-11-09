@@ -156,7 +156,7 @@
 
 .day-panel {
     border-top: 1px solid var(--of-border);
-    background: #fafbfd;
+    background: var(--of-surface-alt);
     padding: 1rem;
 }
 
@@ -396,7 +396,7 @@
     font-size: 1.15rem;
     font-weight: 600;
     border-radius: var(--of-radius);
-    box-shadow: 0 6px 16px rgba(27, 110, 194, 0.3);
+    box-shadow: var(--of-glow);
 }
 
 /* Desktop: week on the left, total and action on the right */

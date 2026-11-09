@@ -27,8 +27,9 @@
     width: 2.75rem;
     height: 2.75rem;
     border-radius: 0.75rem;
-    background: linear-gradient(135deg, var(--of-primary), #0f4c8a);
+    background: var(--of-gradient);
     color: #fff;
+    box-shadow: 0 0 18px rgba(99, 102, 241, 0.45);
     font-weight: 700;
 }
 

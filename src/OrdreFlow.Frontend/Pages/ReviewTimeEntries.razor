@@ -22,9 +22,9 @@
     else
     {
         <div class="week-nav">
-            <button type="button" class="btn btn-outline-primary" aria-label="Forrige uge" @onclick="() => ChangeWeek(-1)">&lsaquo;</button>
+            <button type="button" class="btn btn-outline-primary" aria-label="Forrige uge" @onclick="() => ChangeWeek(-1)"><NavIcon Name="chevron-left" /></button>
             <span class="week-label">Uge @ISOWeek.GetWeekOfYear(weekStart) (@weekStart.ToString("d/M", CultureInfo.InvariantCulture) &ndash; @weekStart.AddDays(6).ToString("d/M", CultureInfo.InvariantCulture))</span>
-            <button type="button" class="btn btn-outline-primary" aria-label="Næste uge" @onclick="() => ChangeWeek(1)">&rsaquo;</button>
+            <button type="button" class="btn btn-outline-primary" aria-label="Næste uge" @onclick="() => ChangeWeek(1)"><NavIcon Name="chevron-right" /></button>
         </div>
 
         <div class="review-toolbar">

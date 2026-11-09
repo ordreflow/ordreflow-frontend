@@ -12,7 +12,10 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    # The app's files aren't fingerprinted, so browsers must revalidate them (cheap 304s via ETag);
+    # otherwise a new deploy can show old CSS mixed with new pages.
     location / {
+        add_header Cache-Control "no-cache" always;
         try_files $uri $uri/ /index.html;
     }
 }
