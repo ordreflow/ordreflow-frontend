@@ -230,3 +230,9 @@
         display: none;
     }
 }
+
+/* The logo glyph is a child component, so it needs ::deep; the glyph has its own padding and stroke widths. */
+.brand-logo ::deep .logo-glyph {
+    width: 100%;
+    height: 100%;
+}
