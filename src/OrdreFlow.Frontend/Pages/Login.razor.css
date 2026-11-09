@@ -26,10 +26,8 @@
     place-items: center;
     width: 2.75rem;
     height: 2.75rem;
-    border-radius: 0.75rem;
-    background: linear-gradient(135deg, var(--of-primary), #0f4c8a);
-    color: #fff;
-    font-weight: 700;
+    border-radius: 23%;
+    box-shadow: 0 0 18px rgba(99, 102, 241, 0.45);
 }
 
 .login-message {
@@ -40,4 +38,11 @@
     width: 100%;
     min-height: 3rem;
     font-size: 1.05rem;
+}
+
+/* The logo file (favicon.svg) draws the gradient tile itself, so the image just fills the span. */
+.login-logo img {
+    display: block;
+    width: 100%;
+    height: 100%;
 }

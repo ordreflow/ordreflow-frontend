@@ -10,9 +10,9 @@
     <h1>Tidsregistreringer</h1>
 
     <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
-        <button type="button" class="btn btn-outline-primary" @onclick="() => ChangeWeek(-1)" aria-label="Forrige uge">&lsaquo;</button>
+        <button type="button" class="btn btn-outline-primary" @onclick="() => ChangeWeek(-1)" aria-label="Forrige uge"><NavIcon Name="chevron-left" /></button>
         <span>Uge @ISOWeek.GetWeekOfYear(weekStart) (@weekStart.ToString("d/M") &ndash; @weekStart.AddDays(6).ToString("d/M"))</span>
-        <button type="button" class="btn btn-outline-primary" @onclick="() => ChangeWeek(1)" aria-label="Næste uge">&rsaquo;</button>
+        <button type="button" class="btn btn-outline-primary" @onclick="() => ChangeWeek(1)" aria-label="Næste uge"><NavIcon Name="chevron-right" /></button>
     </div>
 
     @if (catalogError is not null)

@@ -19,4 +19,10 @@ public sealed record TaskResponse(
     Guid Id,
     Guid OrderId,
     string Title,
-    string Description);
+    string Description,
+    string Status = "Open",
+    DateTime? ClosedAt = null)
+{
+    // Time can't be registered on a closed task, so forms only offer open ones.
+    public bool IsOpen => !string.Equals(Status, "Closed", StringComparison.OrdinalIgnoreCase);
+}

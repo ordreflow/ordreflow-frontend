@@ -4,28 +4,48 @@
 @inject NavigationManager Navigation
 
 <div class="page">
-    <header class="app-header">
-        <NavMenu />
-    </header>
+    <aside class="sidebar @(menuOpen ? "open" : "")" id="main-menu">
+        <NavMenu OnClose="CloseMenu" />
+    </aside>
 
-    <main>
-        <article class="content">
-            @if (isReady)
-            {
-                @Body
-            }
-        </article>
-    </main>
+    @if (menuOpen)
+    {
+        <div class="sidebar-backdrop" @onclick="CloseMenu"></div>
+    }
 
-    <footer class="app-footer">
-        <div class="footer-inner">
-            <BackendStatus />
-        </div>
-    </footer>
+    <div class="main-column">
+        @* Small screens only: the sidebar is hidden behind this menu button. *@
+        <header class="mobile-topbar">
+            <button type="button" class="menu-toggle" aria-label="Åbn menu" aria-controls="main-menu"
+                    aria-expanded="@(menuOpen ? "true" : "false")" @onclick="OpenMenu">
+                <NavIcon Name="menu" />
+            </button>
+            <a class="mobile-brand" href="">
+                <span class="brand-logo" aria-hidden="true"><img src="favicon.svg?v=6" alt="" /></span>
+                <span>OrdreFlow</span>
+            </a>
+        </header>
+
+        <main>
+            <article class="content">
+                @if (isReady)
+                {
+                    @Body
+                }
+            </article>
+        </main>
+
+        <footer class="app-footer">
+            <div class="footer-inner">
+                <BackendStatus />
+            </div>
+        </footer>
+    </div>
 </div>
 
 @code {
     private bool isReady;
+    private bool menuOpen;
 
     protected override async Task OnInitializedAsync()
     {
@@ -48,8 +68,20 @@
         return false;
     }
 
-    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) =>
+    // Picking a page in the drawer on a phone should also close the drawer.
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
         RedirectIfSignedOut();
+        if (menuOpen)
+        {
+            menuOpen = false;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OpenMenu() => menuOpen = true;
+
+    private void CloseMenu() => menuOpen = false;
 
     // The API rejecting an expired token signs the user out; send them to the login page right away.
     private void OnAuthChanged()

@@ -23,14 +23,14 @@
         <div class="week-card">
             <div class="week-nav">
                 <button type="button" class="week-nav-btn" aria-label="Forrige uge" @onclick="() => ChangeWeek(-1)">
-                    <span aria-hidden="true">&lsaquo;</span>
+                    <span aria-hidden="true"><NavIcon Name="chevron-left" /></span>
                 </button>
                 <div class="week-label">
                     <span class="week-number">Uge @ISOWeek.GetWeekOfYear(weekStart)</span>
                     <span class="week-range">@FormatShortDate(weekStart) &ndash; @FormatShortDate(weekStart.AddDays(6))</span>
                 </div>
                 <button type="button" class="week-nav-btn" aria-label="Næste uge" @onclick="() => ChangeWeek(1)">
-                    <span aria-hidden="true">&rsaquo;</span>
+                    <span aria-hidden="true"><NavIcon Name="chevron-right" /></span>
                 </button>
             </div>
 
@@ -138,7 +138,7 @@
     <div class="details-dialog" role="dialog" aria-modal="true" aria-labelledby="details-title">
         <div class="details-header">
             <button type="button" class="details-close" aria-label="Luk" @onclick="CloseDetails">
-                <span aria-hidden="true">&lsaquo;</span>
+                <span aria-hidden="true"><NavIcon Name="chevron-left" /></span>
             </button>
             <h2 id="details-title">Detaljer</h2>
         </div>

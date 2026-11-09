@@ -1,18 +1,45 @@
+/* Futuristic theme with an Apple-like feel: Apple's system font (Inter elsewhere), cool light background,
+   near-black sidebar and a soft indigo-to-cyan gradient. */
 :root {
-    --of-primary: #1b6ec2;
-    --of-primary-soft: #eaf3fb;
-    --of-bg: #f4f6f9;
+    --of-navy: #0b1020;
+    --of-primary: #6366f1;
+    --of-primary-dark: #4f46e5;
+    --of-primary-soft: #eef0fe;
+    --of-accent: #06b6d4;
+    --of-accent-soft: #e0f7fb;
+    --of-gradient: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
+    --of-glow: 0 6px 18px rgba(99, 102, 241, 0.22);
+    --of-bg: #f5f7fb;
     --of-surface: #ffffff;
-    --of-border: #e2e6ec;
-    --of-text: #1f2933;
-    --of-muted: #6b7785;
-    --of-radius: 1rem;
-    --of-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.05);
+    --of-surface-alt: #f8fafd;
+    --of-neutral-soft: #eef1f6;
+    --of-border: #e3e8f0;
+    --of-text: #0f172a;
+    --of-muted: #5b6478;
+    --of-success: #059669;
+    --of-danger: #dc2626;
+    --of-radius: 1.1rem;
+    --of-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 30px rgba(15, 23, 42, 0.06);
+    --of-font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --of-font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: var(--of-font-sans);
+    font-size: 16px;
     background: var(--of-bg);
+    color: var(--of-text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    /* Inter's alternate digits and letters look closer to Apple's SF Pro. */
+    font-feature-settings: 'cv11', 'ss01';
+}
+
+h1, h2, h3, .h1, .h2, .h3 {
+    font-family: var(--of-font-display);
+    font-weight: 700;
+    letter-spacing: -0.022em;
     color: var(--of-text);
 }
 
@@ -21,17 +48,71 @@ h1:focus {
 }
 
 a, .btn-link {
-    color: #0071c1;
+    color: var(--of-primary);
 }
 
-.btn-primary {
+.btn {
+    font-weight: 600;
+    border-radius: 0.6rem;
+}
+
+.btn-primary,
+.btn-primary:disabled {
     color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+    background: var(--of-gradient);
+    border: none;
+    box-shadow: var(--of-glow);
+}
+
+    .btn-primary:hover,
+    .btn-primary:active,
+    .btn-primary:focus {
+        color: #fff;
+        background: var(--of-gradient);
+        filter: brightness(1.06);
+        box-shadow: 0 8px 22px rgba(99, 102, 241, 0.3);
+    }
+
+    .btn-primary:disabled {
+        box-shadow: none;
+        opacity: 0.55;
+    }
+
+.btn-success,
+.btn-success:disabled {
+    color: #fff;
+    background-color: var(--of-success);
+    border-color: var(--of-success);
+}
+
+    .btn-success:hover,
+    .btn-success:active,
+    .btn-success:focus {
+        color: #fff;
+        background-color: #047857;
+        border-color: #047857;
+    }
+
+.btn-outline-primary {
+    color: var(--of-primary);
+    border-color: var(--of-primary);
+}
+
+    .btn-outline-primary:hover,
+    .btn-outline-primary:active {
+        color: #fff;
+        background-color: var(--of-primary);
+        border-color: var(--of-primary);
+    }
+
+.form-control,
+.form-select {
+    border-color: var(--of-border);
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+  border-color: var(--of-primary);
+  box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.25);
 }
 
 .content {
@@ -96,7 +177,7 @@ a, .btn-link {
     }
 
         .loading-progress circle:last-child {
-            stroke: #1b6ec2;
+            stroke: var(--of-primary);
             stroke-dasharray: calc(3.141 * var(--blazor-load-percentage, 0%) * 0.8), 500%;
             transition: stroke-dasharray 0.05s ease-in-out;
         }
@@ -134,7 +215,7 @@ code {
     padding: 1rem 1.25rem;
     min-height: 3.5rem;
     background: #fff;
-    border: 1px solid #d3d3d3;
+    border: 1px solid var(--of-border);
     border-radius: 0.5rem;
     text-align: left;
     font: inherit;
@@ -142,9 +223,9 @@ code {
 }
 
 .order-card-selected {
-    border-color: #1b6ec2;
+    border-color: var(--of-primary);
     border-width: 2px;
-    background: #eaf3fb;
+    background: var(--of-primary-soft);
 }
 
 .order-card-name {
@@ -152,7 +233,7 @@ code {
 }
 
 .order-card-customer {
-    color: #6c757d;
+    color: var(--of-muted);
     font-size: 0.9rem;
 }
 
