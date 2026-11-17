@@ -38,6 +38,12 @@ public abstract class PageTestContext : TestContext
                 Content = JsonContent.Create(value)
             };
 
+        public void PostJson<T>(string path, T value) =>
+            responses[(HttpMethod.Post, path)] = () => new(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(value)
+            };
+
         public void File(string path, byte[] content, string contentType, string fileName) =>
             responses[(HttpMethod.Get, path)] = () =>
             {

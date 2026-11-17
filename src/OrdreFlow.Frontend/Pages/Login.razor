@@ -97,9 +97,16 @@
 
     private static string LoginErrorMessage(IReadOnlyList<ApiError> errors)
     {
+        // The API answers the same for a wrong password and a locked account, so this hints at the lockout
+        // without telling anyone whether the account exists.
         if (errors.Any(error => error.Code == "InvalidCredentials"))
         {
-            return "E-mailen eller adgangskoden er forkert.";
+            return "E-mailen eller adgangskoden er forkert. Efter 5 forkerte forsøg spærres kontoen i 15 minutter.";
+        }
+
+        if (errors.Any(error => error.Code == "TooManyLoginAttempts"))
+        {
+            return "For mange loginforsøg fra denne enhed. Vent et minut, og prøv igen.";
         }
 
         if (errors.Any(error => error.Code == "UserInactive"))
