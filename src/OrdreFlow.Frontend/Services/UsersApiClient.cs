@@ -25,6 +25,10 @@ public class UsersApiClient(HttpClient httpClient)
         ApiResponse.WriteAsync(
             () => httpClient.PostAsJsonAsync($"api/users/{id}/role", request, cancellationToken), cancellationToken);
 
+    public Task<ApiResult<bool>> ChangeJobTitleAsync(Guid id, ChangeJobTitleRequest request, CancellationToken cancellationToken = default) =>
+        ApiResponse.WriteAsync(
+            () => httpClient.PostAsJsonAsync($"api/users/{id}/jobTitle", request, cancellationToken), cancellationToken);
+
     public Task<ApiResult<bool>> AssignManagerAsync(Guid id, AssignManagerRequest request, CancellationToken cancellationToken = default) =>
         ApiResponse.WriteAsync(
             () => httpClient.PostAsJsonAsync($"api/users/{id}/manager", request, cancellationToken), cancellationToken);

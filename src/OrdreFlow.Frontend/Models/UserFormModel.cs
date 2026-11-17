@@ -16,4 +16,7 @@ public sealed class UserFormModel
     public string Password { get; set; } = "";
     public string Role { get; set; } = "Employee";
     public Guid? ManagerId { get; set; }
+
+    [StringLength(100, ErrorMessage = "Jobtitlen må højst være 100 tegn.")]
+    public string? JobTitle { get; set; }
 }

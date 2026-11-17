@@ -1,0 +1,54 @@
+.departments-page { max-width: 1050px; margin: 0 auto; }
+.departments-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.75rem; }
+.departments-header h1 { font-size: 2rem; font-weight: 700; margin-bottom: .4rem; }
+.departments-header p:last-child { margin: 0; }
+.eyebrow { color: var(--of-primary); text-transform: uppercase; letter-spacing: .1em; font-size: .75rem; font-weight: 700; margin-bottom: .4rem; }
+.muted { color: var(--of-muted); font-size: .9rem; }
+label, legend { display: block; font-size: .9rem; font-weight: 600; margin-bottom: .4rem; }
+.form-check-label { font-weight: 500; }
+.field-help { font-size: .82rem; margin: .35rem 0 .75rem; }
+.empty-state { padding: 3rem 1rem; text-align: center; border: 1px dashed var(--of-border); border-radius: var(--of-radius); background: var(--of-surface); }
+
+.managed-panel { padding: 1.25rem; margin-bottom: 1.25rem; background: var(--of-surface); border: 1px solid var(--of-border); border-radius: var(--of-radius); box-shadow: var(--of-shadow); }
+.managed-panel h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: .75rem; }
+.managed-panel p:last-child { margin: 0; }
+.managed-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .6rem; }
+.managed-list li { display: flex; align-items: center; gap: .65rem; min-width: 0; }
+
+.department-list { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: .9rem; }
+.department-card { display: flex; flex-direction: column; gap: .75rem; padding: 1.15rem; border: 1px solid var(--of-border); background: var(--of-surface); border-radius: var(--of-radius); box-shadow: var(--of-shadow); }
+.department-main { display: flex; align-items: center; gap: .85rem; }
+.department-icon { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; background: var(--of-primary-soft); color: var(--of-primary); }
+.department-identity, .member-identity { display: flex; flex-direction: column; gap: .15rem; min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.department-managers { margin: 0; font-size: .9rem; }
+.department-open { align-self: flex-start; }
+.badge-soft { border-radius: 2rem; padding: .25rem .65rem; font-size: .78rem; font-weight: 600; background: var(--of-primary-soft); color: var(--of-primary); white-space: nowrap; }
+
+.avatar { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; background: var(--of-primary-soft); color: var(--of-primary); font-weight: 700; }
+.avatar.small { width: 36px; height: 36px; font-size: .85rem; }
+
+/* The popup is positioned by CSS instead of showModal(), so it also works on older iPhones. */
+.dialog-backdrop { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 30; background: #101b2c99; }
+.department-dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 31; display: block; margin: 0; border: 0; border-radius: var(--of-radius); padding: 1.5rem; width: min(640px, calc(100% - 1.5rem)); max-height: 90vh; max-height: 90dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; background: var(--of-surface); color: var(--of-text); box-shadow: 0 20px 70px #0003; }
+.department-dialog:focus { outline: none; }
+.dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.dialog-header h2 { font-size: 1.4rem; margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.close-button { background: transparent; border: 0; font-size: 1.75rem; line-height: 1; padding: .4rem; color: var(--of-text); }
+.dialog-section ~ .dialog-section { border-top: 1px solid var(--of-border); margin-top: 1.25rem; padding-top: 1rem; }
+.section-title { font-size: 1rem; font-weight: 700; margin-bottom: .75rem; }
+.action-row { display: flex; gap: .5rem; }
+.action-row .btn { flex-shrink: 0; }
+.member-list { list-style: none; padding: 0; margin: 0; display: grid; gap: .5rem; }
+.member-row { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; padding: .65rem; border-radius: .75rem; background: var(--of-bg); }
+.member-actions { display: flex; flex-wrap: wrap; gap: .35rem; margin-left: auto; }
+.dialog-footer { display: flex; justify-content: flex-end; border-top: 1px solid var(--of-border); margin-top: 1.5rem; padding-top: 1rem; }
+
+@media (max-width: 600px) {
+    .departments-header { align-items: flex-start; flex-direction: column; }
+    .departments-header .btn { width: 100%; }
+    .department-list { grid-template-columns: 1fr; }
+    .department-open { align-self: stretch; }
+    .department-dialog { padding: 1rem; }
+    .action-row { flex-direction: column; }
+    .member-actions { width: 100%; margin-left: 0; padding-left: calc(36px + .65rem); }
+}

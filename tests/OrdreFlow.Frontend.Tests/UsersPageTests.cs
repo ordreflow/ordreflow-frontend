@@ -138,4 +138,68 @@ public sealed class UsersPageTests : PageTestContext
         });
         Assert.DoesNotContain(Api.Requests, request => request.Path == "api/users");
     }
+
+    [Fact]
+    public void AdminCreatesUserWithTrimmedJobTitle()
+    {
+        var admin = Manager with { Role = "Admin" };
+        Api.Json("api/users/me", admin);
+        Api.Json("api/users", new ViewUsersResponse([admin]));
+        Api.Accept(HttpMethod.Post, "api/users");
+        var page = RenderComponent<Users>();
+
+        page.WaitForAssertion(() => Assert.False(page.Find(".users-header button").HasAttribute("disabled")));
+        page.Find(".users-header button").Click();
+        page.Find("#user-name").Change("New Employee");
+        page.Find("#user-email").Change("new@example.com");
+        page.Find("#create-job-title").Change("  Elektriker ");
+        page.Find("#user-password").Change("Test-password-123!");
+        page.Find("form").Submit();
+
+        page.WaitForAssertion(() =>
+        {
+            var request = Assert.Single(Api.Requests, request => request.Method == HttpMethod.Post);
+            var payload = JsonSerializer.Deserialize<CreateUserRequest>(request.Body!, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            Assert.Equal("Elektriker", payload!.JobTitle);
+            Assert.Equal("Employee", payload.Role);
+        });
+    }
+
+    [Fact]
+    public void JobTitleIsShownOnUserCardAndInDetails()
+    {
+        var employee = Manager with { Id = Guid.NewGuid(), Name = "Employee", Email = "employee@example.com", Role = "Employee", JobTitle = "Elektriker" };
+        Api.Json("api/users", new ViewUsersResponse([employee]));
+        Api.Json($"api/users/{employee.Id}", employee);
+        var page = RenderComponent<Users>();
+
+        Assert.Equal("Elektriker", page.WaitForElement(".user-card .job-title").TextContent);
+        page.Find(".user-card").Click();
+        page.WaitForAssertion(() => Assert.Contains("Elektriker", page.Find(".user-metadata").TextContent));
+    }
+
+    // FR-13: the job title is saved separately and does not send a role change.
+    [Fact]
+    public void AdminChangesJobTitleWithoutChangingRole()
+    {
+        var admin = Manager with { Id = Guid.NewGuid(), Role = "Admin" };
+        var employee = Manager with { Id = Guid.NewGuid(), Name = "Employee", Email = "employee@example.com", Role = "Employee" };
+        Api.Json("api/users/me", admin);
+        Api.Json("api/users", new ViewUsersResponse([admin, employee]));
+        Api.Json($"api/users/{employee.Id}", employee);
+        Api.Accept(HttpMethod.Post, $"api/users/{employee.Id}/jobTitle");
+        var page = RenderComponent<Users>();
+
+        page.WaitForElement(".user-card").Click();
+        page.WaitForElement("#edit-job-title").Input("Projektleder");
+        page.FindAll(".admin-section button").Single(button => button.TextContent == "Gem jobtitel").Click();
+
+        page.WaitForAssertion(() =>
+        {
+            var request = Assert.Single(Api.Requests, request => request.Method == HttpMethod.Post);
+            Assert.Equal($"api/users/{employee.Id}/jobTitle", request.Path);
+            Assert.Equal("""{"jobTitle":"Projektleder"}""", request.Body);
+        });
+        Assert.DoesNotContain(Api.Requests, request => request.Path.EndsWith("/role"));
+    }
 }

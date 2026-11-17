@@ -26,7 +26,7 @@ public sealed class NavMenuTests : PageTestContext
 
         Assert.Equal(["Min tid", "Ledelse", "Administration"], GroupTitles(menu));
         Assert.Equal(["Overblik", "Registrer tid", "Mine registreringer", "Godkend tid", "Eksporter tid",
-            "Ordrer", "Rapporter", "Brugere"], ItemLabels(menu));
+            "Ordrer", "Rapporter", "Brugere", "Afdelinger"], ItemLabels(menu));
         Assert.Equal("MM", menu.Find(".user-avatar").TextContent);
         Assert.Equal("Leder", menu.Find(".user-role").TextContent);
     }

@@ -1,0 +1,467 @@
+@page "/departments"
+@inject DepartmentsApiClient DepartmentsApiClient
+@inject UsersApiClient UsersApiClient
+@inject AuthState AuthState
+
+<PageTitle>Afdelinger | OrdreFlow</PageTitle>
+
+<section class="departments-page">
+    <header class="departments-header">
+        <div>
+            <p class="eyebrow">Administration</p>
+            <h1>Afdelinger</h1>
+            <p class="muted">
+                @(IsAdmin
+                    ? "Placer brugere og afdelingsledere i en eller flere afdelinger."
+                    : "De afdelinger, du er en del af.")
+            </p>
+        </div>
+        @if (IsAdmin)
+        {
+            <button class="btn btn-primary" type="button" @onclick="OpenCreate" disabled="@isLoading">+ Opret afdeling</button>
+        }
+    </header>
+
+    @if (notice is not null)
+    {
+        <p class="alert alert-success" role="status">@notice</p>
+    }
+    @if (loadError is not null)
+    {
+        <div class="alert alert-danger" role="alert">
+            <p>@loadError</p>
+            <button class="btn btn-outline-danger" type="button" @onclick="LoadAsync" disabled="@isLoading">Prøv igen</button>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <p role="status">Henter afdelinger...</p>
+    }
+    else if (loadError is null)
+    {
+        @if (ShowManagedEmployees)
+        {
+            <section class="managed-panel" aria-labelledby="managed-title">
+                <h2 id="managed-title">Medarbejdere du kan planlægge for</h2>
+                @if (managedEmployees.Count == 0)
+                {
+                    <p class="muted">Du er ikke afdelingsleder for nogen medarbejdere endnu.</p>
+                }
+                else
+                {
+                    <ul class="managed-list">
+                        @foreach (var employee in managedEmployees)
+                        {
+                            <li @key="employee.Id">
+                                <span class="avatar small" aria-hidden="true">@Initials(employee.Name)</span>
+                                <span class="member-identity">
+                                    <strong>@employee.Name</strong>
+                                    <span class="muted">@(employee.JobTitle ?? employee.Email)</span>
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+        }
+
+        @if (departments.Count == 0)
+        {
+            <p class="empty-state">
+                @(IsAdmin ? "Der er ingen afdelinger endnu. Opret den første afdeling." : "Du er ikke placeret i nogen afdeling.")
+            </p>
+        }
+        else
+        {
+            <ul class="department-list">
+                @foreach (var department in departments)
+                {
+                    var managers = department.Members.Where(member => member.IsManager).ToArray();
+                    <li @key="department.Id" class="department-card">
+                        <div class="department-main">
+                            <span class="department-icon" aria-hidden="true"><NavIcon Name="building" /></span>
+                            <span class="department-identity">
+                                <strong>@department.Name</strong>
+                                <span class="muted">
+                                    @if (IsAdmin || department.IsManagedByMe)
+                                    {
+                                        @MemberCount(department.Members.Count)
+                                    }
+                                    else
+                                    {
+                                        @("Du er medlem")
+                                    }
+                                </span>
+                            </span>
+                            @if (department.IsManagedByMe)
+                            {
+                                <span class="badge-soft">Du er afdelingsleder</span>
+                            }
+                        </div>
+                        @if (managers.Length > 0)
+                        {
+                            <p class="department-managers">
+                                <span class="muted">Afdelingsleder:</span> @string.Join(", ", managers.Select(manager => manager.Name))
+                            </p>
+                        }
+                        @if (IsAdmin || department.IsManagedByMe)
+                        {
+                            <button type="button" class="btn btn-outline-primary btn-sm department-open"
+                                    @onclick="() => OpenManage(department.Id)">
+                                @(IsAdmin ? "Administrer" : "Se medlemmer")
+                            </button>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    }
+</section>
+
+@if (dialogOpen)
+{
+    <div class="dialog-backdrop" @onclick="CloseDialog"></div>
+    <dialog open @ref="dialog" class="department-dialog" aria-modal="true" aria-labelledby="department-dialog-title"
+            tabindex="-1" @onkeydown="CloseOnEscape">
+        <header class="dialog-header">
+            <h2 id="department-dialog-title">@(isCreating ? "Opret afdeling" : SelectedDepartment?.Name ?? "Afdeling")</h2>
+            <button class="close-button" type="button" aria-label="Luk" disabled="@isBusy" @onclick="CloseDialog">&times;</button>
+        </header>
+        @if (dialogError is not null)
+        {
+            <p class="alert alert-danger" role="alert">@dialogError</p>
+        }
+        @if (dialogNotice is not null)
+        {
+            <p class="alert alert-success" role="status">@dialogNotice</p>
+        }
+
+        @if (isCreating)
+        {
+            <form @onsubmit="CreateAsync" @onsubmit:preventDefault>
+                <fieldset disabled="@isBusy">
+                    <label for="department-name">Navn</label>
+                    <input id="department-name" class="form-control" maxlength="100" placeholder="F.eks. Service"
+                           @bind="nameInput" @bind:event="oninput" />
+                    <button class="btn btn-primary mt-3" type="submit" disabled="@string.IsNullOrWhiteSpace(nameInput)">
+                        @(isBusy ? "Gemmer..." : "Opret afdeling")
+                    </button>
+                </fieldset>
+            </form>
+        }
+        else if (SelectedDepartment is { } department)
+        {
+            @if (IsAdmin)
+            {
+                <fieldset class="dialog-section" disabled="@isBusy">
+                    <label for="rename-department">Navn</label>
+                    <div class="action-row">
+                        <input id="rename-department" class="form-control" maxlength="100"
+                               @bind="nameInput" @bind:event="oninput" />
+                        <button type="button" class="btn btn-outline-primary" @onclick="RenameAsync"
+                                disabled="@(string.IsNullOrWhiteSpace(nameInput) || nameInput.Trim() == department.Name)">Omdøb</button>
+                    </div>
+                </fieldset>
+            }
+
+            <section class="dialog-section">
+                <h3 class="section-title">Medlemmer (@department.Members.Count)</h3>
+                @if (department.Members.Count == 0)
+                {
+                    <p class="muted">Afdelingen har ingen medlemmer endnu.</p>
+                }
+                else
+                {
+                    <ul class="member-list">
+                        @foreach (var member in department.Members)
+                        {
+                            <li @key="member.UserId" class="member-row">
+                                <span class="avatar small" aria-hidden="true">@Initials(member.Name)</span>
+                                <span class="member-identity">
+                                    <strong>@member.Name</strong>
+                                    <span class="muted">
+                                        @RoleName(member.Role)@(member.JobTitle is null ? "" : $" · {member.JobTitle}")
+                                        @(member.Status == "Active" ? "" : " · Inaktiv")
+                                    </span>
+                                </span>
+                                @if (member.IsManager)
+                                {
+                                    <span class="badge-soft">Afdelingsleder</span>
+                                }
+                                @if (IsAdmin)
+                                {
+                                    <span class="member-actions">
+                                        @if (member.IsManager || CanBeManager(member.Role))
+                                        {
+                                            <button type="button" class="btn btn-link btn-sm" disabled="@isBusy"
+                                                    @onclick="() => SetMemberAsync(member.UserId, !member.IsManager)">
+                                                @(member.IsManager ? "Fjern som leder" : "Gør til leder")
+                                            </button>
+                                        }
+                                        @if (confirmRemoveUserId == member.UserId)
+                                        {
+                                            <button type="button" class="btn btn-danger btn-sm" disabled="@isBusy"
+                                                    @onclick="() => RemoveMemberAsync(member.UserId)">Ja, fjern</button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" disabled="@isBusy"
+                                                    @onclick="() => confirmRemoveUserId = null">Annuller</button>
+                                        }
+                                        else
+                                        {
+                                            <button type="button" class="btn btn-outline-danger btn-sm" disabled="@isBusy"
+                                                    aria-label="@($"Fjern {member.Name} fra afdelingen")"
+                                                    @onclick="() => confirmRemoveUserId = member.UserId">Fjern</button>
+                                        }
+                                    </span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+
+            @if (IsAdmin)
+            {
+                <fieldset class="dialog-section" disabled="@isBusy">
+                    <legend class="section-title">Tilføj medlem</legend>
+                    @if (!AvailableUsers.Any())
+                    {
+                        <p class="muted">Alle aktive brugere er allerede med i afdelingen.</p>
+                    }
+                    else
+                    {
+                        <label for="add-member">Bruger</label>
+                        <select id="add-member" class="form-select" @bind="addUserIdText">
+                            <option value="">Vælg bruger</option>
+                            @foreach (var user in AvailableUsers)
+                            {
+                                <option value="@user.Id">@user.Name (@RoleName(user.Role)@(user.JobTitle is null ? "" : $" · {user.JobTitle}"))</option>
+                            }
+                        </select>
+                        <div class="form-check mt-2">
+                            <input id="add-as-manager" class="form-check-input" type="checkbox" @bind="addAsManager"
+                                   disabled="@(!CanBeManager(SelectedUserToAdd?.Role))" aria-describedby="manager-rule" />
+                            <label class="form-check-label" for="add-as-manager">Afdelingsleder</label>
+                        </div>
+                        <p class="muted field-help" id="manager-rule">
+                            Kun brugere med rollen Leder eller Administrator kan være afdelingsleder. Jobtitlen giver ikke adgang.
+                        </p>
+                        <button type="button" class="btn btn-primary" @onclick="AddMemberAsync"
+                                disabled="@(SelectedUserToAdd is null)">Tilføj til afdeling</button>
+                    }
+                </fieldset>
+            }
+        }
+
+        <footer class="dialog-footer">
+            <button class="btn btn-outline-secondary" type="button" disabled="@isBusy" @onclick="CloseDialog">Luk</button>
+        </footer>
+    </dialog>
+}
+
+@code {
+    private IReadOnlyList<DepartmentResponse> departments = [];
+    private IReadOnlyList<UserResponse> users = [];
+    private IReadOnlyList<UserResponse> managedEmployees = [];
+    private string? loadError;
+    private string? notice;
+    private string? dialogError;
+    private string? dialogNotice;
+    private bool isLoading = true;
+    private bool isBusy;
+    private bool dialogOpen;
+    private bool focusDialog;
+    private bool isCreating;
+    private Guid? selectedDepartmentId;
+    private Guid? confirmRemoveUserId;
+    private string nameInput = "";
+    private string addUserIdText = "";
+    private bool addAsManager;
+    private ElementReference dialog;
+
+    private bool IsAdmin => AuthState.User is { Status: "Active", Role: "Admin" };
+    private bool HasManagerAccess => AuthState.User is { Status: "Active", Role: "Admin" or "Manager" };
+    private bool ShowManagedEmployees => HasManagerAccess && (!IsAdmin || managedEmployees.Count > 0);
+
+    private DepartmentResponse? SelectedDepartment =>
+        departments.FirstOrDefault(department => department.Id == selectedDepartmentId);
+
+    private IEnumerable<UserResponse> AvailableUsers => users
+        .Where(user => user.Status == "Active")
+        .Where(user => SelectedDepartment?.Members.All(member => member.UserId != user.Id) ?? false)
+        .OrderBy(user => user.Name);
+
+    private UserResponse? SelectedUserToAdd => Guid.TryParse(addUserIdText, out var id)
+        ? AvailableUsers.FirstOrDefault(user => user.Id == id)
+        : null;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (focusDialog)
+        {
+            focusDialog = false;
+            await dialog.FocusAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        loadError = null;
+        var me = await UsersApiClient.GetMeAsync();
+        if (!me.IsSuccess)
+        {
+            loadError = Errors(me);
+            isLoading = false;
+            return;
+        }
+
+        await AuthState.SetUserAsync(me.Value!);
+        await RefreshAsync();
+        isLoading = false;
+    }
+
+    private async Task RefreshAsync()
+    {
+        var result = await DepartmentsApiClient.GetDepartmentsAsync();
+        if (!result.IsSuccess)
+        {
+            loadError = Errors(result);
+            return;
+        }
+        departments = result.Value!.Items;
+
+        if (IsAdmin)
+        {
+            var allUsers = await UsersApiClient.GetUsersAsync();
+            if (allUsers.IsSuccess)
+                users = allUsers.Value!.Items.ToArray();
+            else
+                loadError = Errors(allUsers);
+        }
+
+        if (HasManagerAccess)
+        {
+            var managed = await DepartmentsApiClient.GetManagedEmployeesAsync();
+            managedEmployees = managed.IsSuccess ? managed.Value!.Items.ToArray() : [];
+        }
+    }
+
+    private void OpenCreate()
+    {
+        if (!IsAdmin) return;
+        ResetDialog();
+        isCreating = true;
+        nameInput = "";
+        dialogOpen = focusDialog = true;
+    }
+
+    private void OpenManage(Guid departmentId)
+    {
+        ResetDialog();
+        isCreating = false;
+        selectedDepartmentId = departmentId;
+        nameInput = SelectedDepartment?.Name ?? "";
+        dialogOpen = focusDialog = true;
+    }
+
+    private void ResetDialog()
+    {
+        dialogError = dialogNotice = null;
+        confirmRemoveUserId = null;
+        addUserIdText = "";
+        addAsManager = false;
+    }
+
+    private void CloseDialog()
+    {
+        if (isBusy) return;
+        dialogOpen = false;
+        selectedDepartmentId = null;
+    }
+
+    private void CloseOnEscape(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") CloseDialog();
+    }
+
+    private async Task CreateAsync()
+    {
+        if (isBusy || string.IsNullOrWhiteSpace(nameInput)) return;
+        var name = nameInput.Trim();
+        await WriteAsync(() => DepartmentsApiClient.CreateAsync(new(name)), async () =>
+        {
+            dialogOpen = false;
+            notice = $"Afdelingen {name} er oprettet.";
+            await RefreshAsync();
+        });
+    }
+
+    private Task RenameAsync() => WriteAsync(
+        () => DepartmentsApiClient.RenameAsync(selectedDepartmentId!.Value, new(nameInput.Trim())),
+        () => AfterDialogChangeAsync("Afdelingen er omdøbt."));
+
+    private Task AddMemberAsync()
+    {
+        if (SelectedUserToAdd is not { } user) return Task.CompletedTask;
+        var asManager = addAsManager && CanBeManager(user.Role);
+        return WriteAsync(
+            () => DepartmentsApiClient.SetMemberAsync(selectedDepartmentId!.Value, user.Id, new(asManager)),
+            async () =>
+            {
+                addUserIdText = "";
+                addAsManager = false;
+                await AfterDialogChangeAsync($"{user.Name} er tilføjet{(asManager ? " som afdelingsleder" : "")}.");
+            });
+    }
+
+    private Task SetMemberAsync(Guid userId, bool isManager) => WriteAsync(
+        () => DepartmentsApiClient.SetMemberAsync(selectedDepartmentId!.Value, userId, new(isManager)),
+        () => AfterDialogChangeAsync(isManager ? "Medlemmet er nu afdelingsleder." : "Medlemmet er ikke længere afdelingsleder."));
+
+    private Task RemoveMemberAsync(Guid userId) => WriteAsync(
+        () => DepartmentsApiClient.RemoveMemberAsync(selectedDepartmentId!.Value, userId),
+        () =>
+        {
+            confirmRemoveUserId = null;
+            return AfterDialogChangeAsync("Medlemmet er fjernet fra afdelingen.");
+        });
+
+    private async Task AfterDialogChangeAsync(string message)
+    {
+        dialogNotice = message;
+        await RefreshAsync();
+    }
+
+    private async Task WriteAsync(Func<Task<ApiResult<bool>>> write, Func<Task> onSuccess)
+    {
+        if (isBusy) return;
+        isBusy = true;
+        dialogError = dialogNotice = null;
+        try
+        {
+            var result = await write();
+            if (result.IsSuccess)
+                await onSuccess();
+            else
+                dialogError = Errors(result);
+        }
+        finally { isBusy = false; }
+    }
+
+    private static bool CanBeManager(string? role) => role is "Manager" or "Admin";
+    private static string MemberCount(int count) => count == 1 ? "1 medlem" : $"{count} medlemmer";
+    private static string Errors<T>(ApiResult<T> result) => string.Join(" ", result.Errors.Select(error => error.Code switch
+    {
+        "DepartmentNameTaken" => "Der findes allerede en afdeling med det navn.",
+        "DepartmentNameRequired" => "Indtast et navn til afdelingen.",
+        "DepartmentNameTooLong" => "Navnet må højst være 100 tegn.",
+        "DepartmentManagerAccessRequired" => "Kun brugere med rollen Leder eller Administrator kan være afdelingsleder.",
+        "DepartmentMemberInactive" => "Kun aktive brugere kan tilføjes til en afdeling.",
+        _ => error.Message
+    }));
+    private static string RoleName(string role) => role switch { "Admin" => "Administrator", "Manager" => "Leder", "Employee" => "Medarbejder", _ => role };
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => char.ToUpperInvariant(part[0])));
+}

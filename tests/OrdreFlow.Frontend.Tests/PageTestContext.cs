@@ -21,6 +21,7 @@ public abstract class PageTestContext : TestContext
         Services.AddScoped<AuthState>();
         Services.AddScoped<UsersApiClient>();
         Services.AddScoped<OrdersApiClient>();
+        Services.AddScoped<DepartmentsApiClient>();
         Api.Json("api/users/me", Manager);
     }
 

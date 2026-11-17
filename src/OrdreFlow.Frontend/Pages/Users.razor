@@ -80,6 +80,10 @@
                             <span class="avatar" aria-hidden="true">@Initials(user.Name)</span>
                             <span class="user-identity">
                                 <strong>@user.Name</strong>
+                                @if (!string.IsNullOrWhiteSpace(user.JobTitle))
+                                {
+                                    <span class="job-title">@user.JobTitle</span>
+                                }
                                 <span class="muted">@user.Email</span>
                             </span>
                             <span class="user-badges">
@@ -124,6 +128,7 @@
                 <dl class="user-metadata">
                     <div><dt>Status</dt><dd>@StatusName(selectedUser.Status)</dd></div>
                     <div><dt>Rolle</dt><dd>@RoleName(selectedUser.Role)</dd></div>
+                    <div><dt>Jobtitel</dt><dd>@(selectedUser.JobTitle ?? "Ingen jobtitel")</dd></div>
                     <div><dt>Oprettet</dt><dd>@selectedUser.CreatedAt.ToString("dd.MM.yyyy")</dd></div>
                     @if (IsAdmin)
                     {
@@ -157,6 +162,13 @@
                     </div>
                     @if (isCreating)
                     {
+                        <div class="form-field">
+                            <label for="create-job-title">Jobtitel (valgfri)</label>
+                            <InputText id="create-job-title" class="form-control" maxlength="100" placeholder="F.eks. Elektriker"
+                                       aria-describedby="create-job-title-help" @bind-Value="form.JobTitle" />
+                            <p class="muted field-help" id="create-job-title-help">Vises kun som titel. Adgang styres af rollen.</p>
+                            <ValidationMessage For="() => form.JobTitle" />
+                        </div>
                         <div class="form-field">
                             <label for="user-password">Adgangskode</label>
                             <InputText id="user-password" class="form-control" type="password" autocomplete="new-password"
@@ -203,10 +215,19 @@
                         <button type="button" class="btn btn-outline-primary" disabled="@(selectedRole == selectedUser.Role)"
                                 @onclick="ChangeRoleAsync">Gem rolle</button>
                     </div>
+                    <p class="muted field-help">Rollen bestemmer, hvad brugeren har adgang til i systemet.</p>
                     @if (selectedUser.Id == AuthState.User?.Id)
                     {
                         <p class="muted">Ændrer du din egen rolle, kan du miste adgang til administration.</p>
                     }
+                    <label for="edit-job-title">Jobtitel</label>
+                    <p class="muted field-help" id="job-title-help">Vises kun som titel og giver ingen adgang. Lad feltet være tomt for at fjerne titlen.</p>
+                    <div class="action-row">
+                        <input id="edit-job-title" class="form-control" maxlength="100" placeholder="F.eks. Elektriker"
+                               aria-describedby="job-title-help" @bind="selectedJobTitle" @bind:event="oninput" />
+                        <button type="button" class="btn btn-outline-primary" disabled="@(!JobTitleChanged)"
+                                @onclick="ChangeJobTitleAsync">Gem jobtitel</button>
+                    </div>
                     <label for="assign-manager">Tildel manager</label>
                     <p class="muted" id="manager-help">Vælg en aktiv leder eller administrator for at tildele eller ændre manager.</p>
                     <div class="action-row">
@@ -257,6 +278,7 @@
     private string search = "";
     private string roleFilter = "";
     private string selectedRole = "Employee";
+    private string selectedJobTitle = "";
     private Guid? selectedManagerId;
     private string? loadError;
     private string? dialogError;
@@ -281,6 +303,8 @@
     private IEnumerable<UserResponse> AvailableManagers => users
         .Where(user => user.Id != selectedUser?.Id && user.Status == "Active" && user.Role is "Manager" or "Admin")
         .OrderBy(user => user.Name);
+    private bool JobTitleChanged => selectedUser is not null
+        && NormalizeJobTitle(selectedJobTitle) != selectedUser.JobTitle;
     private string ManagerName(Guid? managerId) => managerId is not Guid id
         ? "Ingen manager tilknyttet"
         : users.FirstOrDefault(user => user.Id == id)?.Name ?? id.ToString();
@@ -364,6 +388,7 @@
     {
         selectedUser = user;
         selectedRole = user.Role;
+        selectedJobTitle = user.JobTitle ?? "";
         selectedManagerId = user.ManagerId;
         form = new() { Name = user.Name, Email = user.Email, Role = user.Role };
     }
@@ -393,7 +418,8 @@
         try
         {
             var result = isCreating
-                ? await UsersApiClient.CreateAsync(new(form.Name, form.Email, form.Password, form.Role, form.ManagerId))
+                ? await UsersApiClient.CreateAsync(new(form.Name, form.Email, form.Password, form.Role, form.ManagerId,
+                    NormalizeJobTitle(form.JobTitle)))
                 : await UsersApiClient.UpdateAsync(selectedUser!.Id, new(form.Name, form.Email));
             if (!result.IsSuccess)
             {
@@ -415,6 +441,10 @@
 
     private Task ChangeRoleAsync() => WriteAsync(
         () => UsersApiClient.ChangeRoleAsync(selectedUser!.Id, new(selectedRole)), "Rollen er opdateret.");
+
+    private Task ChangeJobTitleAsync() => WriteAsync(
+        () => UsersApiClient.ChangeJobTitleAsync(selectedUser!.Id, new(NormalizeJobTitle(selectedJobTitle))),
+        "Jobtitlen er opdateret.");
 
     private Task AssignManagerAsync() => WriteAsync(
         () => UsersApiClient.AssignManagerAsync(selectedUser!.Id, new(selectedManagerId!.Value)), "Manageren er tildelt.");
@@ -483,6 +513,7 @@
         finally { isBusy = false; }
     }
 
+    private static string? NormalizeJobTitle(string? title) => string.IsNullOrWhiteSpace(title) ? null : title.Trim();
     private static string Errors<T>(ApiResult<T> result) => string.Join(" ", result.Errors.Select(error => error.Message));
     private static string RoleName(string role) => role switch { "Admin" => "Administrator", "Manager" => "Leder", "Employee" => "Medarbejder", _ => role };
     private static string StatusName(string status) => status switch { "Active" => "Aktiv", "Inactive" => "Inaktiv", _ => status };
