@@ -1,3 +1,10 @@
+# Keep the scheme set by the HTTPS proxy in front (Caddy in test), so the API knows the request was HTTPS
+# (HTTPS redirection, HSTS). Without a proxy in front, fall back to this server's own scheme.
+map $http_x_forwarded_proto $forwarded_proto {
+    default $http_x_forwarded_proto;
+    ""      $scheme;
+}
+
 server {
     listen 8080;
     server_name _;
@@ -9,7 +16,7 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
     }
 
     # The app's files aren't fingerprinted, so browsers must revalidate them (cheap 304s via ETag);
