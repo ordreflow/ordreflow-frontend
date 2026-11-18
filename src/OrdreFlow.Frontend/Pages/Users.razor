@@ -1,19 +1,21 @@
 @page "/users"
-@inject UsersApiClient UsersApiClient
+@using Microsoft.AspNetCore.Components.Web
+@inject EmployeesApiClient EmployeesApi
 @inject AuthState AuthState
+@inject NavigationManager Navigation
 
-<PageTitle>Brugere | OrdreFlow</PageTitle>
+<PageTitle>Medarbejdere | OrdreFlow</PageTitle>
 
 <section class="users-page">
     <header class="users-header">
         <div>
-            <p class="eyebrow">Brugeradministration</p>
-            <h1>Brugere</h1>
-            <p class="muted">Overblik over brugere og deres adgang til OrdreFlow.</p>
+            <p class="eyebrow">Medarbejderadministration</p>
+            <h1>Medarbejdere</h1>
+            <p class="muted">Konti, profiler og systemtilladelser i OrdreFlow.</p>
         </div>
-        @if (IsAdmin)
+        @if (AuthState.IsAdministrator)
         {
-            <button class="btn btn-primary" type="button" @onclick="OpenCreate" disabled="@isLoading">+ Opret bruger</button>
+            <button class="btn btn-primary" type="button" @onclick="OpenCreate" disabled="@isLoading">+ Opret medarbejder</button>
         }
     </header>
 
@@ -28,63 +30,58 @@
             <button class="btn btn-outline-danger" type="button" @onclick="LoadAsync" disabled="@isLoading">Prøv igen</button>
         </div>
     }
-    @if (isLoading)
+    @if (!AuthState.IsAdministrator && !isLoading)
     {
-        <p role="status">Henter brugere...</p>
+        <p class="alert alert-info">Medarbejderadministration er kun tilgængelig for administratorer.</p>
     }
-    else if (!CanManage && loadError is null)
+    else if (isLoading)
     {
-        <p class="alert alert-info">Brugeroversigten er kun tilgængelig for ledere og administratorer.</p>
+        <p role="status">Henter medarbejdere...</p>
     }
-    else if (CanManage)
+    else
     {
-    @if (IsAdmin)
-    {
-    <div class="users-toolbar">
+        <div class="users-toolbar">
             <div>
-                <label for="user-search">Søg efter navn eller e-mail</label>
-                <input id="user-search" class="form-control" type="search" placeholder="Find bruger..."
+                <label for="employee-search">Søg efter navn eller e-mail</label>
+                <input id="employee-search" class="form-control" type="search" placeholder="Find medarbejder..."
                        @bind="search" @bind:event="oninput" />
             </div>
             <div>
-                <label for="role-filter">Rolle</label>
-                <select id="role-filter" class="form-select" @bind="roleFilter">
-                    <option value="">Alle roller</option>
-                    <option value="Employee">Medarbejder</option>
-                    <option value="Manager">Leder</option>
-                    <option value="Admin">Administrator</option>
+                <label for="permission-filter">Tilladelse</label>
+                <select id="permission-filter" class="form-select" @bind="permissionFilter">
+                    <option value="">Alle medarbejdere</option>
+                    @foreach (var permission in PermissionOptions)
+                    {
+                        <option value="@permission">@PermissionName(permission)</option>
+                    }
                 </select>
             </div>
         </div>
-        }
-        else
+        <p class="muted" aria-live="polite">@VisibleEmployees.Count() af @employees.Count medarbejdere</p>
+
+        @if (employees.Count == 0)
         {
-            <p class="muted">Du kan se brugere, der er tilknyttet dig.</p>
+            <p class="empty-state">Der er ingen medarbejdere at vise.</p>
         }
-        <p class="muted" aria-live="polite">@VisibleUsers.Count() af @users.Count brugere</p>
-        @if (users.Count == 0 && loadError is null)
+        else if (!VisibleEmployees.Any())
         {
-            <p class="empty-state">Der er ingen brugere at vise.</p>
-        }
-        else if (!VisibleUsers.Any())
-        {
-            <p class="empty-state">Ingen brugere matcher din søgning.</p>
+            <p class="empty-state">Ingen medarbejdere matcher din søgning.</p>
         }
         else
         {
             <ul class="user-list">
-                @foreach (var user in VisibleUsers)
+                @foreach (var employee in VisibleEmployees)
                 {
-                    <li @key="user.Id">
-                        <button type="button" class="user-card" @onclick="() => OpenDetailsAsync(user.Id)">
-                            <span class="avatar" aria-hidden="true">@Initials(user.Name)</span>
+                    <li @key="employee.Id">
+                        <button type="button" class="user-card" @onclick="() => OpenDetailsAsync(employee.Id)">
+                            <span class="avatar" aria-hidden="true">@Initials(employee.Name)</span>
                             <span class="user-identity">
-                                <strong>@user.Name</strong>
-                                <span class="muted">@user.Email</span>
+                                <strong>@employee.Name</strong>
+                                <span class="muted">@employee.Email</span>
                             </span>
                             <span class="user-badges">
-                                <span class="role-badge">@RoleName(user.Role)</span>
-                                <span class="status-badge @(user.Status == "Active" ? "active" : "")">@StatusName(user.Status)</span>
+                                <span class="role-badge">@PermissionSummary(employee.Permissions ?? [])</span>
+                                <span class="status-badge @(employee.Status == "Active" ? "active" : "")">@StatusName(employee.Status)</span>
                             </span>
                             <span class="user-arrow" aria-hidden="true"><NavIcon Name="chevron-right" /></span>
                         </button>
@@ -97,12 +94,11 @@
 
 @if (dialogOpen)
 {
-    @* Shown by Blazor instead of showModal(), which older iPhones (iOS < 15.4) don't support. *@
     <div class="dialog-backdrop" @onclick="CloseDialog"></div>
-    <dialog open @ref="dialog" class="user-dialog" aria-modal="true" aria-labelledby="user-dialog-title"
+    <dialog open @ref="dialog" class="user-dialog" aria-modal="true" aria-labelledby="employee-dialog-title"
             tabindex="-1" @onkeydown="CloseOnEscape">
         <header class="dialog-header">
-            <h2 id="user-dialog-title">@(isCreating ? "Opret bruger" : "Brugerdetaljer")</h2>
+            <h2 id="employee-dialog-title">@(isCreating ? "Opret medarbejder" : "Medarbejderoplysninger")</h2>
             <button class="close-button" type="button" aria-label="Luk" disabled="@isBusy" @onclick="CloseDialog">&times;</button>
         </header>
         @if (dialogError is not null)
@@ -115,133 +111,105 @@
         }
         @if (isLoadingDetails)
         {
-            <p role="status">Henter bruger...</p>
+            <p role="status">Henter medarbejder...</p>
         }
-        else if (isCreating || selectedUser is not null)
+        else if (isCreating)
         {
-            @if (selectedUser is not null)
-            {
-                <dl class="user-metadata">
-                    <div><dt>Status</dt><dd>@StatusName(selectedUser.Status)</dd></div>
-                    <div><dt>Rolle</dt><dd>@RoleName(selectedUser.Role)</dd></div>
-                    <div><dt>Oprettet</dt><dd>@selectedUser.CreatedAt.ToString("dd.MM.yyyy")</dd></div>
-                    @if (IsAdmin)
-                    {
-                        <div><dt>Tilknyttet manager</dt><dd>@ManagerName(selectedUser.ManagerId)</dd></div>
-                    }
-                    <div class="full-width"><dt>Bruger-ID</dt><dd class="user-id">@selectedUser.Id</dd></div>
-                </dl>
-            }
-            @if (!isCreating && !IsAdmin && selectedUser is not null)
-            {
-                <dl class="user-metadata">
-                    <div><dt>Navn</dt><dd>@selectedUser.Name</dd></div>
-                    <div><dt>E-mail</dt><dd>@selectedUser.Email</dd></div>
-                </dl>
-            }
-            @if (isCreating || IsAdmin)
-            {
-            <EditForm Model="form" OnValidSubmit="SaveProfileAsync">
+            <EditForm Model="createForm" OnValidSubmit="CreateAsync">
                 <DataAnnotationsValidator />
                 <fieldset disabled="@isBusy">
-                    <legend class="section-title">@(isCreating ? "Ny bruger" : "Profiloplysninger")</legend>
                     <div class="form-field">
-                        <label for="user-name">Navn</label>
-                        <InputText id="user-name" class="form-control" autocomplete="name" @bind-Value="form.Name" />
-                        <ValidationMessage For="() => form.Name" />
+                        <label for="create-name">Navn</label>
+                        <InputText id="create-name" class="form-control" @bind-Value="createForm.Name" />
+                        <ValidationMessage For="() => createForm.Name" />
                     </div>
                     <div class="form-field">
-                        <label for="user-email">E-mail</label>
-                        <InputText id="user-email" class="form-control" type="email" autocomplete="email" @bind-Value="form.Email" />
-                        <ValidationMessage For="() => form.Email" />
+                        <label for="create-email">E-mail</label>
+                        <InputText id="create-email" class="form-control" type="email" @bind-Value="createForm.Email" />
+                        <ValidationMessage For="() => createForm.Email" />
                     </div>
-                    @if (isCreating)
-                    {
-                        <div class="form-field">
-                            <label for="user-password">Adgangskode</label>
-                            <InputText id="user-password" class="form-control" type="password" autocomplete="new-password"
-                                       required @bind-Value="form.Password" />
-                        </div>
-                        <div class="form-field">
-                            <label for="create-role">Rolle</label>
-                            <InputSelect id="create-role" class="form-select" @bind-Value="form.Role">
-                                <option value="Employee">Medarbejder</option>
-                                @if (IsAdmin)
-                                {
-                                    <option value="Manager">Leder</option>
-                                    <option value="Admin">Administrator</option>
-                                }
-                            </InputSelect>
-                        </div>
-                        <div class="form-field">
-                            <label for="create-manager">Tilknyt manager (valgfrit)</label>
-                            <InputSelect id="create-manager" class="form-select" @bind-Value="form.ManagerId">
-                                <option value="">Ingen manager</option>
-                                @foreach (var manager in AvailableManagers)
-                                {
-                                    <option value="@manager.Id">@manager.Name (@RoleName(manager.Role))</option>
-                                }
-                            </InputSelect>
-                        </div>
-                    }
-                    <button class="btn btn-primary" type="submit">@(isBusy ? "Gemmer..." : isCreating ? "Opret bruger" : "Gem profil")</button>
+                    <div class="form-field">
+                        <label for="create-password">Adgangskode</label>
+                        <InputText id="create-password" class="form-control" type="password" @bind-Value="createForm.Password" />
+                        <ValidationMessage For="() => createForm.Password" />
+                    </div>
+                    <div class="form-field">
+                        <label for="create-title">Titel (valgfri)</label>
+                        <InputText id="create-title" class="form-control" @bind-Value="createForm.Title" />
+                    </div>
+                    <fieldset class="admin-section">
+                        <legend class="section-title">Systemtilladelser</legend>
+                        @foreach (var permission in PermissionOptions)
+                        {
+                            <label class="form-check">
+                                <input class="form-check-input" type="checkbox" checked="@createPermissions.Contains(permission)"
+                                       @onchange="args => TogglePermission(createPermissions, permission, args)" />
+                                <span class="form-check-label">@PermissionName(permission)</span>
+                            </label>
+                        }
+                    </fieldset>
+                    <button class="btn btn-primary mt-3" type="submit">@(isBusy ? "Opretter..." : "Opret medarbejder")</button>
                 </fieldset>
             </EditForm>
-            }
-
-            @if (!isCreating && IsAdmin && selectedUser is not null)
-            {
-                <fieldset class="admin-section" disabled="@isBusy">
-                    <legend class="section-title">Adgang og tilknytning</legend>
-                    <label for="edit-role">Rolle</label>
-                    <div class="action-row">
-                        <select id="edit-role" class="form-select" @bind="selectedRole">
-                            <option value="Employee">Medarbejder</option>
-                            <option value="Manager">Leder</option>
-                            <option value="Admin">Administrator</option>
-                        </select>
-                        <button type="button" class="btn btn-outline-primary" disabled="@(selectedRole == selectedUser.Role)"
-                                @onclick="ChangeRoleAsync">Gem rolle</button>
+        }
+        else if (selectedEmployee is not null)
+        {
+            <dl class="user-metadata">
+                <div><dt>E-mail</dt><dd>@selectedEmployee.Email</dd></div>
+                <div><dt>Status</dt><dd>@StatusName(selectedEmployee.Status)</dd></div>
+                <div><dt>Oprettet</dt><dd>@selectedEmployee.CreatedAt.ToString("dd.MM.yyyy")</dd></div>
+                <div><dt>Tilladelser</dt><dd>@PermissionSummary(selectedEmployee.Permissions ?? [])</dd></div>
+                <div class="full-width"><dt>Medarbejder-ID</dt><dd class="user-id">@selectedEmployee.Id</dd></div>
+            </dl>
+            <EditForm Model="editForm" OnValidSubmit="SaveProfileAsync">
+                <DataAnnotationsValidator />
+                <fieldset disabled="@isBusy">
+                    <legend class="section-title">Profiloplysninger</legend>
+                    <div class="form-field">
+                        <label for="edit-name">Navn</label>
+                        <InputText id="edit-name" class="form-control" @bind-Value="editForm.Name" />
+                        <ValidationMessage For="() => editForm.Name" />
                     </div>
-                    @if (selectedUser.Id == AuthState.User?.Id)
-                    {
-                        <p class="muted">Ændrer du din egen rolle, kan du miste adgang til administration.</p>
-                    }
-                    <label for="assign-manager">Tildel manager</label>
-                    <p class="muted" id="manager-help">Vælg en aktiv leder eller administrator for at tildele eller ændre manager.</p>
-                    <div class="action-row">
-                        <select id="assign-manager" class="form-select" @bind="selectedManagerId" aria-describedby="manager-help">
-                            <option value="">Vælg manager</option>
-                            @foreach (var manager in AvailableManagers)
-                            {
-                                <option value="@manager.Id">@manager.Name (@RoleName(manager.Role))</option>
-                            }
-                        </select>
-                        <button class="btn btn-outline-primary" type="button" disabled="@(selectedManagerId is null)"
-                                @onclick="AssignManagerAsync">Tildel</button>
+                    <div class="form-field">
+                        <label for="edit-title">Titel</label>
+                        <InputText id="edit-title" class="form-control" @bind-Value="editForm.Title" />
                     </div>
-                    @if (!AvailableManagers.Any())
-                    {
-                        <p class="muted">Ingen andre aktive ledere eller administratorer er tilgængelige.</p>
-                    }
+                    <p class="muted">E-mailadressen kan ikke ændres via den nuværende backend-API.</p>
+                    <button class="btn btn-primary" type="submit">Gem profil</button>
                 </fieldset>
-                @if (selectedUser.Status == "Active")
+            </EditForm>
+            <fieldset class="admin-section" disabled="@isBusy">
+                <legend class="section-title">Systemtilladelser</legend>
+                @foreach (var permission in PermissionOptions)
                 {
-                    <div class="danger-zone">
-                        <h3>Slet bruger</h3>
-                        <p>Brugeren deaktiveres. Historiske tidsregistreringer bevares.</p>
-                        @if (confirmDelete)
-                        {
-                            <p role="alert">Vil du deaktivere @selectedUser.Name?</p>
-                            <button class="btn btn-danger" type="button" disabled="@isBusy" @onclick="DeleteAsync">Ja, deaktiver bruger</button>
-                            <button class="btn btn-outline-secondary" type="button" disabled="@isBusy" @onclick="() => confirmDelete = false">Annuller</button>
-                        }
-                        else
-                        {
-                            <button class="btn btn-outline-danger" type="button" disabled="@isBusy" @onclick="() => confirmDelete = true">Slet / deaktiver bruger</button>
-                        }
-                    </div>
+                    <label class="form-check">
+                        <input class="form-check-input" type="checkbox" checked="@selectedPermissions.Contains(permission)"
+                               @onchange="args => TogglePermission(selectedPermissions, permission, args)" />
+                        <span class="form-check-label">@PermissionName(permission)</span>
+                    </label>
                 }
+                <button class="btn btn-outline-primary mt-2" type="button" @onclick="SavePermissionsAsync">Gem tilladelser</button>
+            </fieldset>
+            <p class="mt-3"><a href="/departments">Administrer afdelingstilknytninger</a></p>
+            @if (selectedEmployee.Status == "Active")
+            {
+                <div class="danger-zone">
+                    <h3>Deaktiver konto</h3>
+                    @if (confirmDeactivate)
+                    {
+                        <p role="alert">Vil du deaktivere @selectedEmployee.Name?</p>
+                        <button class="btn btn-danger me-2" type="button" disabled="@isBusy" @onclick="() => SetActiveAsync(false)">Ja, deaktiver</button>
+                        <button class="btn btn-outline-secondary" type="button" disabled="@isBusy" @onclick="() => confirmDeactivate = false">Annuller</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-outline-danger" type="button" disabled="@isBusy" @onclick="() => confirmDeactivate = true">Deaktiver medarbejder</button>
+                    }
+                </div>
+            }
+            else
+            {
+                <button class="btn btn-outline-success mt-3" type="button" disabled="@isBusy" @onclick="() => SetActiveAsync(true)">Aktiver medarbejder</button>
             }
         }
         <footer class="dialog-footer">
@@ -251,13 +219,17 @@
 }
 
 @code {
-    private IReadOnlyList<UserResponse> users = [];
-    private UserResponse? selectedUser;
-    private UserFormModel form = new();
+    private static readonly string[] PermissionOptions =
+        ["Administrator", "Payroll", "DepartmentManager", "CatagoryReviewer"];
+
+    private IReadOnlyList<EmployeeResponse> employees = [];
+    private EmployeeResponse? selectedEmployee;
+    private readonly HashSet<string> createPermissions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> selectedPermissions = new(StringComparer.OrdinalIgnoreCase);
+    private EmployeeCreateForm createForm = new();
+    private EmployeeEditForm editForm = new();
     private string search = "";
-    private string roleFilter = "";
-    private string selectedRole = "Employee";
-    private Guid? selectedManagerId;
+    private string permissionFilter = "";
     private string? loadError;
     private string? dialogError;
     private string? notice;
@@ -268,24 +240,16 @@
     private bool isBusy;
     private bool dialogOpen;
     private bool showDialog;
-    private bool confirmDelete;
+    private bool confirmDeactivate;
     private ElementReference dialog;
 
-    private bool IsAdmin => AuthState.User is { Status: "Active", Role: "Admin" };
-    private bool CanManage => AuthState.User is { Status: "Active", Role: "Admin" or "Manager" };
-    private IEnumerable<UserResponse> VisibleUsers => users
-        .Where(user => string.IsNullOrEmpty(roleFilter) || user.Role == roleFilter)
-        .Where(user => user.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
-            || user.Email.Contains(search, StringComparison.OrdinalIgnoreCase))
-        .OrderBy(user => user.Name);
-    private IEnumerable<UserResponse> AvailableManagers => users
-        .Where(user => user.Id != selectedUser?.Id && user.Status == "Active" && user.Role is "Manager" or "Admin")
-        .OrderBy(user => user.Name);
-    private string ManagerName(Guid? managerId) => managerId is not Guid id
-        ? "Ingen manager tilknyttet"
-        : users.FirstOrDefault(user => user.Id == id)?.Name ?? id.ToString();
+    private IEnumerable<EmployeeResponse> VisibleEmployees => employees
+        .Where(employee => permissionFilter.Length == 0 || employee.HasPermission(permissionFilter))
+        .Where(employee => employee.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || employee.Email.Contains(search, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(employee => employee.Name);
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task OnInitializedAsync() => AuthState.IsAdministrator ? LoadAsync() : Task.CompletedTask;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -296,45 +260,25 @@
         }
     }
 
-    private void CloseOnEscape(KeyboardEventArgs e)
-    {
-        if (e.Key == "Escape") CloseDialog();
-    }
-
     private async Task LoadAsync()
     {
         isLoading = true;
         loadError = null;
-        var me = await UsersApiClient.GetMeAsync();
-        if (!me.IsSuccess)
-            loadError = Errors(me);
-        else
-        {
-            await AuthState.SetUserAsync(me.Value!);
-            if (CanManage)
-                await RefreshListAsync();
-            else
-                users = [];
-        }
-        isLoading = false;
-    }
-
-    private async Task RefreshListAsync()
-    {
-        loadError = null;
-        var result = await UsersApiClient.GetUsersAsync();
+        var result = await EmployeesApi.GetEmployeesAsync();
         if (result.IsSuccess)
-            users = result.Value!.Items.ToArray();
+            employees = result.Value!.Items;
         else
             loadError = Errors(result);
+        isLoading = false;
     }
 
     private void OpenCreate()
     {
-        if (!IsAdmin) return;
+        if (!AuthState.IsAdministrator) return;
         ResetDialog();
         isCreating = true;
-        form = new();
+        createForm = new();
+        createPermissions.Clear();
         dialogOpen = showDialog = true;
     }
 
@@ -344,7 +288,7 @@
         isCreating = false;
         isLoadingDetails = true;
         dialogOpen = showDialog = true;
-        var result = await UsersApiClient.GetAsync(id);
+        var result = await EmployeesApi.GetAsync(id);
         if (result.IsSuccess)
             SetSelected(result.Value!);
         else
@@ -354,137 +298,153 @@
 
     private void ResetDialog()
     {
-        selectedUser = null;
+        selectedEmployee = null;
         dialogError = dialogNotice = null;
-        selectedManagerId = null;
-        confirmDelete = false;
+        confirmDeactivate = false;
     }
 
-    private void SetSelected(UserResponse user)
+    private void SetSelected(EmployeeResponse employee)
     {
-        selectedUser = user;
-        selectedRole = user.Role;
-        selectedManagerId = user.ManagerId;
-        form = new() { Name = user.Name, Email = user.Email, Role = user.Role };
+        selectedEmployee = employee;
+        selectedPermissions.Clear();
+        selectedPermissions.UnionWith(employee.Permissions ?? []);
+        editForm = new() { Name = employee.Name, Title = employee.Title };
     }
 
     private void CloseDialog()
     {
         if (isBusy) return;
         dialogOpen = false;
-        form.Password = "";
+        createForm.Password = "";
     }
 
-    private async Task SaveProfileAsync()
+    private async Task CreateAsync()
     {
-        if (isBusy) return;
-        if (!IsAdmin)
-        {
-            dialogError = "Kun aktive administratorer kan oprette eller redigere brugere.";
-            return;
-        }
-        dialogError = dialogNotice = null;
-        if (isCreating && string.IsNullOrWhiteSpace(form.Password))
-        {
-            dialogError = "Indtast en adgangskode.";
-            return;
-        }
+        if (isBusy || !AuthState.IsAdministrator) return;
         isBusy = true;
-        try
+        dialogError = dialogNotice = null;
+        var request = new CreateEmployeeRequest(
+            createForm.Name.Trim(),
+            createForm.Email.Trim(),
+            createForm.Password,
+            string.IsNullOrWhiteSpace(createForm.Title) ? null : createForm.Title.Trim(),
+            createPermissions.ToArray());
+        var result = await EmployeesApi.CreateAsync(request);
+        if (!result.IsSuccess)
+            dialogError = Errors(result);
+        else
         {
-            var result = isCreating
-                ? await UsersApiClient.CreateAsync(new(form.Name, form.Email, form.Password, form.Role, form.ManagerId))
-                : await UsersApiClient.UpdateAsync(selectedUser!.Id, new(form.Name, form.Email));
-            if (!result.IsSuccess)
-            {
-                dialogError = Errors(result);
-                return;
-            }
-            if (isCreating)
-            {
-                form.Password = "";
-                dialogOpen = false;
-                notice = "Brugeren er oprettet.";
-                await RefreshListAsync();
-            }
-            else
-                await AfterChangeAsync("Profilen er gemt.");
+            dialogOpen = false;
+            notice = "Medarbejderen er oprettet.";
+            await LoadAsync();
         }
-        finally { isBusy = false; }
+        isBusy = false;
     }
 
-    private Task ChangeRoleAsync() => WriteAsync(
-        () => UsersApiClient.ChangeRoleAsync(selectedUser!.Id, new(selectedRole)), "Rollen er opdateret.");
+    private Task SaveProfileAsync() => WriteAsync(
+        () => EmployeesApi.UpdateAsync(selectedEmployee!.Id,
+            new UpdateEmployeeRequest(editForm.Name.Trim(), string.IsNullOrWhiteSpace(editForm.Title) ? null : editForm.Title.Trim())),
+        "Profilen er gemt.");
 
-    private Task AssignManagerAsync() => WriteAsync(
-        () => UsersApiClient.AssignManagerAsync(selectedUser!.Id, new(selectedManagerId!.Value)), "Manageren er tildelt.");
+    private Task SavePermissionsAsync() => WriteAsync(
+        () => EmployeesApi.SetPermissionsAsync(selectedEmployee!.Id,
+            new SetEmployeePermissionsRequest(selectedPermissions.ToArray())),
+        "Tilladelserne er opdateret.");
+
+    private Task SetActiveAsync(bool active) => WriteAsync(
+        () => active ? EmployeesApi.ActivateAsync(selectedEmployee!.Id) : EmployeesApi.DeactivateAsync(selectedEmployee!.Id),
+        active ? "Medarbejderen er aktiveret." : "Medarbejderen er deaktiveret.");
 
     private async Task WriteAsync(Func<Task<ApiResult<bool>>> write, string message)
     {
-        if (isBusy) return;
+        if (isBusy || selectedEmployee is null) return;
         isBusy = true;
         dialogError = dialogNotice = null;
-        try
+        var result = await write();
+        if (!result.IsSuccess)
+            dialogError = Errors(result);
+        else
         {
-            var result = await write();
-            if (!result.IsSuccess)
-                dialogError = Errors(result);
-            else
-            {
-                selectedManagerId = null;
-                await AfterChangeAsync(message);
-            }
+            dialogNotice = message;
+            confirmDeactivate = false;
+            await RefreshSelectedAsync();
         }
-        finally { isBusy = false; }
+        isBusy = false;
     }
 
-    private async Task AfterChangeAsync(string message)
+    private async Task RefreshSelectedAsync()
     {
-        dialogNotice = message;
-        var result = await UsersApiClient.GetAsync(selectedUser!.Id);
+        if (selectedEmployee is null) return;
+        var id = selectedEmployee.Id;
+        var result = await EmployeesApi.GetAsync(id);
         if (!result.IsSuccess)
         {
-            dialogError = $"Ændringen er gemt, men brugeroplysningerne kunne ikke genindlæses: {Errors(result)}";
+            dialogError = $"Ændringen blev gemt, men medarbejderen kunne ikke genindlæses: {Errors(result)}";
             return;
         }
         SetSelected(result.Value!);
-        if (selectedUser!.Id == AuthState.User?.Id)
-            await AuthState.SetUserAsync(selectedUser);
-        if (CanManage)
-            await RefreshListAsync();
-        else
-        {
-            users = [];
-            dialogOpen = false;
-            notice = message;
-        }
+        if (id == AuthState.User?.Id)
+            await AuthState.SetUserAsync(result.Value!);
+        await LoadAsync();
     }
 
-    private async Task DeleteAsync()
+    private static void TogglePermission(HashSet<string> permissions, string permission, ChangeEventArgs args)
     {
-        if (isBusy) return;
-        isBusy = true;
-        dialogError = dialogNotice = null;
-        try
-        {
-            var result = await UsersApiClient.DeleteAsync(selectedUser!.Id);
-            if (!result.IsSuccess)
-            {
-                dialogError = Errors(result);
-                return;
-            }
-            dialogOpen = false;
-            notice = "Brugeren er deaktiveret.";
-            if (selectedUser.Id == AuthState.User?.Id)
-                await AuthState.SignOutAsync();
-            else
-                await RefreshListAsync();
-        }
-        finally { isBusy = false; }
+        if (args.Value is true || string.Equals(args.Value?.ToString(), "true", StringComparison.OrdinalIgnoreCase))
+            permissions.Add(permission);
+        else
+            permissions.Remove(permission);
     }
 
-    private static string Errors<T>(ApiResult<T> result) => string.Join(" ", result.Errors.Select(error => error.Message));
-    private static string RoleName(string role) => role switch { "Admin" => "Administrator", "Manager" => "Leder", "Employee" => "Medarbejder", _ => role };
-    private static string StatusName(string status) => status switch { "Active" => "Aktiv", "Inactive" => "Inaktiv", _ => status };
-    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => char.ToUpperInvariant(part[0])));
+    private static string PermissionName(string permission) => permission switch
+    {
+        "Administrator" => "Administrator",
+        "Payroll" => "Løn / eksport",
+        "DepartmentManager" => "Afdelingsleder",
+        "CatagoryReviewer" => "Kategorireviewer",
+        _ => permission
+    };
+
+    private static string PermissionSummary(IEnumerable<string> permissions)
+    {
+        var names = permissions.Select(PermissionName).ToArray();
+        return names.Length == 0 ? "Medarbejder" : string.Join(" · ", names);
+    }
+
+    private static string StatusName(string status) => status switch
+    {
+        "Active" => "Aktiv",
+        "Deactivated" => "Deaktiveret",
+        _ => status
+    };
+
+    private static string Initials(string name) =>
+        string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2)
+            .Select(part => char.ToUpperInvariant(part[0])));
+
+    private static string Errors<T>(ApiResult<T> result) =>
+        string.Join(" ", result.Errors.Select(item => item.Message));
+
+    private void CloseOnEscape(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape") CloseDialog();
+    }
+
+    private sealed class EmployeeCreateForm
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Indtast et navn.")]
+        public string Name { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.EmailAddress]
+        public string Email { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Password { get; set; } = "";
+        public string? Title { get; set; }
+    }
+
+    private sealed class EmployeeEditForm
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Indtast et navn.")]
+        public string Name { get; set; } = "";
+        public string? Title { get; set; }
+    }
 }

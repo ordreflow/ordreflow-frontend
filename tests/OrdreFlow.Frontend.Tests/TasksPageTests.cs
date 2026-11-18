@@ -18,7 +18,6 @@ public sealed class TasksPageTests : PageTestContext
 
     public TasksPageTests()
     {
-        Services.AddScoped<TasksApiClient>();
         Api.Json("api/orders", new ViewOrdersResponse([order, otherOrder]));
     }
 

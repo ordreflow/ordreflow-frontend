@@ -15,15 +15,25 @@ public class AuthState(IJSRuntime jsRuntime)
 
     public DateTime ExpiresAt { get; private set; }
 
-    public UserResponse? User { get; private set; }
+    public EmployeeResponse? User { get; private set; }
 
     public bool IsAuthenticated =>
         !string.IsNullOrEmpty(AccessToken) && ExpiresAt.ToUniversalTime() > DateTime.UtcNow;
 
-    // Mirrors the backend's ManagerOrAdmin policy so the UI only offers actions the API will allow.
-    public bool IsManagerOrAdmin =>
-        string.Equals(User?.Role, "Manager", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(User?.Role, "Admin", StringComparison.OrdinalIgnoreCase);
+    public bool IsAdministrator => User?.HasPermission("Administrator") == true;
+
+    public bool CanPlanWork =>
+        IsAdministrator || User?.HasPermission("DepartmentManager") == true;
+
+    public bool CanReviewTime =>
+        User?.HasPermission("CatagoryReviewer") == true;
+
+    public bool CanExportTime =>
+        User?.HasPermission("Payroll") == true;
+
+    public bool CanViewReports => CanPlanWork;
+
+    public bool IsManagerOrAdmin => IsAdministrator || CanPlanWork;
 
     public event Action? Changed;
 
@@ -39,11 +49,23 @@ public class AuthState(IJSRuntime jsRuntime)
         Changed?.Invoke();
     }
 
-    public async Task SetUserAsync(UserResponse user)
+    public async Task SetUserAsync(EmployeeResponse user)
     {
         User = user;
         await PersistAsync();
         Changed?.Invoke();
+    }
+
+    public Task SetUserAsync(UserResponse user)
+    {
+        var permissions = user.Role switch
+        {
+            "Admin" => new[] { "Administrator" },
+            "Manager" => new[] { "DepartmentManager", "CatagoryReviewer" },
+            _ => new[] { "Employee" }
+        };
+        return SetUserAsync(new EmployeeResponse(
+            user.Id, user.Name, user.Email, null, user.Status, user.CreatedAt, permissions));
     }
 
     public async Task SignOutAsync()
@@ -102,5 +124,5 @@ public class AuthState(IJSRuntime jsRuntime)
         }
     }
 
-    private sealed record StoredSession(string AccessToken, DateTime ExpiresAt, UserResponse? User);
+    private sealed record StoredSession(string AccessToken, DateTime ExpiresAt, EmployeeResponse? User);
 }

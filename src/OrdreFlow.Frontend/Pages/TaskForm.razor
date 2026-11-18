@@ -1,186 +1,539 @@
+@page "/work-planning"
 @page "/tasks/new"
-@page "/tasks/{Id:guid}/edit"
-@inject TasksApiClient TasksApiClient
-@inject OrdersApiClient OrdersApiClient
+@inject WorkPlanningApiClient PlanningApi
+@inject DepartmentsApiClient DepartmentsApi
 @inject AuthState AuthState
-@inject NavigationManager Navigation
+@inject IJSRuntime JS
 
-<PageTitle>OrdreFlow</PageTitle>
+<PageTitle>@Title | OrdreFlow</PageTitle>
 
-<div class="of-card">
+<div class="of-card" id="planning-form">
     <div class="of-card-header">
-        <a class="of-back-btn" href="@BackUrl" aria-label="Tilbage">
+        <a class="of-back-btn" href="/tasks" aria-label="Tilbage til opgaver">
             <span aria-hidden="true"><NavIcon Name="chevron-left" /></span>
         </a>
-        <h1>@(IsEdit ? "Rediger opgave" : "Ny opgave")</h1>
+        <h1>@Title</h1>
     </div>
 
-    @if (!AuthState.IsManagerOrAdmin)
+    @if (!AuthState.CanPlanWork)
     {
-        <p class="of-muted">Kun ledere og administratorer kan oprette og redigere opgaver.</p>
+        <p class="alert alert-info">Planlægning er kun tilgængelig for afdelingsledere og administratorer.</p>
     }
     else if (isLoading)
     {
-        <p class="of-muted">Henter oplysninger...</p>
-    }
-    else if (loadError is not null)
-    {
-        <p class="validation-message" role="alert">@loadError</p>
-        <button type="button" class="btn btn-outline-primary" @onclick="LoadAsync">Prøv igen</button>
+        <p role="status">Henter planlægningsdata...</p>
     }
     else
     {
-        <EditForm Model="formModel" OnValidSubmit="Submit">
-            <DataAnnotationsValidator />
+        @if (IsEditing)
+        {
+            <div class="edit-banner">
+                <span>Du redigerer @(editingCategoryId is not null ? "en kategori" : "en opgave").</span>
+                <button type="button" class="btn btn-link p-0" @onclick="CancelEdit">Annuller</button>
+            </div>
+        }
+        else
+        {
+            <div class="mode-switch" role="tablist" aria-label="Hvad vil du oprette?">
+                <button type="button" role="tab" class="mode-btn @(mode == Mode.WorkItem ? "selected" : null)"
+                        aria-selected="@(mode == Mode.WorkItem ? "true" : "false")" @onclick="() => SwitchMode(Mode.WorkItem)">Opgave</button>
+                <button type="button" role="tab" class="mode-btn @(mode == Mode.Category ? "selected" : null)"
+                        aria-selected="@(mode == Mode.Category ? "true" : "false")" @onclick="() => SwitchMode(Mode.Category)">Kategori</button>
+            </div>
+        }
 
-            @if (IsEdit)
+        @if (error is not null)
+        {
+            <p class="alert alert-danger" role="alert">@error</p>
+        }
+        @if (notice is not null)
+        {
+            <p class="alert alert-success" role="status">@notice</p>
+        }
+
+        @if (mode == Mode.Category)
+        {
+            @if (departments.Count == 0)
             {
-                @* The API can't move a task to another order, so the order is shown read-only when editing. *@
-                <div class="form-field">
-                    <span class="d-block fw-semibold">Sag</span>
-                    <p class="mb-0">@(orders.FirstOrDefault(order => order.Id == formModel.OrderId)?.Name ?? "Ukendt sag")</p>
-                </div>
+                <p class="of-muted">Du har ingen afdelinger, hvor du kan planlægge arbejde.</p>
             }
             else
             {
+                <EditForm Model="categoryForm" OnValidSubmit="SaveCategoryAsync">
+                    <DataAnnotationsValidator />
+                    <div class="form-field">
+                        <label for="department">Afdeling</label>
+                        <InputSelect id="department" class="form-select form-select-lg" @bind-Value="categoryForm.DepartmentId"
+                                     disabled="@(editingCategoryId is not null)">
+                            <option value="">Vælg afdeling</option>
+                            @foreach (var department in departments)
+                            {
+                                <option value="@department.Id">@department.Name</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="() => categoryForm.DepartmentId" />
+                    </div>
+                    <div class="form-field">
+                        <label for="category-name">Navn</label>
+                        <InputText id="category-name" class="form-control form-control-lg" placeholder="Fx Kundeopgaver"
+                                   @bind-Value="categoryForm.Name" />
+                        <ValidationMessage For="() => categoryForm.Name" />
+                    </div>
+                    <div class="form-field">
+                        <label for="category-description">Beskrivelse <span class="of-muted">(valgfri)</span></label>
+                        <InputTextArea id="category-description" class="form-control" rows="3" @bind-Value="categoryForm.Description" />
+                    </div>
+                    <button class="btn btn-primary submit-btn" type="submit" disabled="@isBusy">
+                        @(isBusy ? "Gemmer..." : editingCategoryId is not null ? "Gem ændringer" : "Opret kategori")
+                    </button>
+                </EditForm>
+            }
+        }
+        else if (categories.Count == 0)
+        {
+            <p class="of-muted">Opret først en kategori i en afdeling, du administrerer.</p>
+            <button type="button" class="btn btn-outline-primary" @onclick="() => SwitchMode(Mode.Category)">Opret kategori</button>
+        }
+        else
+        {
+            <EditForm Model="workForm" OnValidSubmit="SaveWorkItemAsync">
+                <DataAnnotationsValidator />
                 <div class="form-field">
-                    <label for="order">Sag</label>
-                    <InputSelect id="order" class="form-select form-select-lg" @bind-Value="formModel.OrderId">
-                        <option value="">Vælg sag</option>
-                        @foreach (var order in OpenOrders)
+                    <label for="category">Kategori</label>
+                    <InputSelect id="category" class="form-select form-select-lg" @bind-Value="workForm.CategoryId"
+                                 @bind-Value:after="ClearAssignees" disabled="@(editingWorkItemId is not null)">
+                        <option value="">Vælg kategori</option>
+                        @foreach (var group in categories.GroupBy(category => category.DepartmentName))
                         {
-                            <option value="@order.Id">@order.Name</option>
+                            <optgroup label="@group.Key">
+                                @foreach (var category in group)
+                                {
+                                    <option value="@category.Id">@category.Name</option>
+                                }
+                            </optgroup>
                         }
                     </InputSelect>
-                    <ValidationMessage For="() => formModel.OrderId" />
-                    @if (OpenOrders.Count == 0)
-                    {
-                        <p class="of-muted mt-2 mb-0">Der er ingen åbne sager at oprette opgaver på.</p>
-                    }
+                    <ValidationMessage For="() => workForm.CategoryId" />
                 </div>
-            }
+                <div class="form-field">
+                    <label for="work-name">Navn</label>
+                    <InputText id="work-name" class="form-control form-control-lg" placeholder="Fx Opsæt reoler"
+                               @bind-Value="workForm.Name" />
+                    <ValidationMessage For="() => workForm.Name" />
+                </div>
+                <div class="form-field">
+                    <span class="field-label">Type</span>
+                    <div class="kind-row" role="radiogroup" aria-label="Type">
+                        @foreach (var kind in Kinds)
+                        {
+                            <button type="button" role="radio" class="kind-btn @(workForm.Kind == kind.Value ? "selected" : null)"
+                                    aria-checked="@(workForm.Kind == kind.Value ? "true" : "false")"
+                                    @onclick="() => workForm.Kind = kind.Value">@kind.Label</button>
+                        }
+                    </div>
+                </div>
+                <div class="form-field">
+                    <label for="work-description">Beskrivelse <span class="of-muted">(valgfri)</span></label>
+                    <InputTextArea id="work-description" class="form-control" rows="3" @bind-Value="workForm.Description" />
+                </div>
 
-            <div class="form-field">
-                <label for="title">Titel</label>
-                <InputText id="title" class="form-control form-control-lg" maxlength="200" @bind-Value="formModel.Title" />
-                <ValidationMessage For="() => formModel.Title" />
-            </div>
+                <label class="visibility-toggle">
+                    <InputCheckbox class="form-check-input" @bind-Value="workForm.AssignmentOnly"
+                                   @bind-Value:after="AssignmentOnlyChanged" />
+                    <span>
+                        <strong>Kun synlig for tildelte medarbejdere</strong>
+                        <span class="of-muted d-block">Ellers kan alle i afdelingen se og registrere tid på opgaven.</span>
+                    </span>
+                </label>
 
-            <div class="form-field">
-                <label for="description">Beskrivelse (valgfri)</label>
-                <InputTextArea id="description" class="form-control" rows="5" maxlength="2000" @bind-Value="formModel.Description" />
-                <ValidationMessage For="() => formModel.Description" />
-            </div>
+                @if (workForm.AssignmentOnly)
+                {
+                    <div class="assignment-panel">
+                        @if (workForm.CategoryId.Length == 0)
+                        {
+                            <p class="of-muted mb-0">Vælg først en kategori for at se afdelingens medarbejdere.</p>
+                        }
+                        else if (AvailableAssignees.Count == 0)
+                        {
+                            <p class="of-muted mb-0">Afdelingen har ingen aktive medarbejdere at tildele til.</p>
+                        }
+                        else
+                        {
+                            <label for="assignee">Tildel medarbejder</label>
+                            <div class="assignee-picker">
+                                <select id="assignee" class="form-select" @bind="assigneeToAdd">
+                                    <option value="">Vælg medarbejder</option>
+                                    @foreach (var employee in AvailableAssignees.Where(item => !workForm.AssignedEmployeeIds.Contains(item.EmployeeId)))
+                                    {
+                                        <option value="@employee.EmployeeId">@employee.Name@(string.IsNullOrWhiteSpace(employee.Title) ? "" : $" · {employee.Title}")</option>
+                                    }
+                                </select>
+                                <button type="button" class="btn btn-outline-primary" disabled="@(assigneeToAdd.Length == 0)"
+                                        @onclick="AddAssignee">Tilføj</button>
+                            </div>
+                            @if (workForm.AssignedEmployeeIds.Count > 0)
+                            {
+                                <ul class="assignee-chips">
+                                    @foreach (var employee in AvailableAssignees.Where(item => workForm.AssignedEmployeeIds.Contains(item.EmployeeId)))
+                                    {
+                                        <li @key="employee.EmployeeId">
+                                            <span>@employee.Name</span>
+                                            <button type="button" aria-label="Fjern @employee.Name"
+                                                    @onclick="() => workForm.AssignedEmployeeIds.Remove(employee.EmployeeId)">×</button>
+                                        </li>
+                                    }
+                                </ul>
+                                <div class="assignment-plan">
+                                    <div>
+                                        <label for="expected-hours">Forventet tid (timer)</label>
+                                        <InputNumber id="expected-hours" class="form-control" min="0.25" step="0.25"
+                                                     @bind-Value="workForm.ExpectedHours" />
+                                        <ValidationMessage For="() => workForm.ExpectedHours" />
+                                    </div>
+                                    <div>
+                                        <label for="expected-deadline">Deadline</label>
+                                        <InputDate id="expected-deadline" class="form-control" @bind-Value="workForm.ExpectedDeadline" />
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <p class="of-muted mt-2 mb-0">Ingen medarbejdere valgt endnu. Opgaven er kun synlig for dem, du tilføjer.</p>
+                            }
+                        }
+                    </div>
+                }
 
-            @if (submitError is not null)
-            {
-                <p class="validation-message" role="alert">@submitError</p>
-            }
-
-            <button type="submit" class="btn btn-success submit-btn"
-                    disabled="@(isSubmitting || (!IsEdit && OpenOrders.Count == 0))">
-                @(isSubmitting ? "Gemmer..." : IsEdit ? "Gem ændringer" : "Opret")
-            </button>
-        </EditForm>
+                <button class="btn btn-primary submit-btn" type="submit" disabled="@isBusy">
+                    @(isBusy ? "Gemmer..." : editingWorkItemId is not null ? "Gem ændringer" : "Opret opgave")
+                </button>
+            </EditForm>
+        }
     }
 </div>
 
+@if (AuthState.CanPlanWork && !isLoading && categories.Count > 0)
+{
+    <section class="of-card category-overview">
+        <h2>Dine kategorier</h2>
+        <p class="of-muted">Tryk på en kategori eller en opgave for at redigere den.</p>
+        <ul class="order-list">
+            @foreach (var category in categories)
+            {
+                <li @key="category.Id">
+                    <div class="order-card category-card @(editingCategoryId == category.Id ? "order-card-selected" : null)">
+                        <button type="button" class="category-edit-btn" @onclick="() => EditCategory(category)"
+                                aria-label="Rediger kategorien @category.Name">
+                            <span class="order-card-name">@category.Name</span>
+                            <span class="order-card-customer">@category.DepartmentName · @category.WorkItems.Count @(category.WorkItems.Count == 1 ? "opgave" : "opgaver")</span>
+                            <span class="edit-hint">Rediger</span>
+                        </button>
+                        @if (category.WorkItems.Count > 0)
+                        {
+                            <ul class="category-items">
+                                @foreach (var item in category.WorkItems)
+                                {
+                                    <li @key="item.Id">
+                                        <button type="button" class="work-item-btn @(editingWorkItemId == item.Id ? "selected" : null)"
+                                                @onclick="() => EditWorkItem(category, item)" aria-label="Rediger opgaven @item.Name">
+                                            <span class="work-item-name">@item.Name</span>
+                                            <span class="kind-tag">@KindLabel(item.Kind)</span>
+                                            @if (item.AssignmentOnly)
+                                            {
+                                                <span class="kind-tag private">Kun tildelte</span>
+                                            }
+                                            @if (item.Assignments is { Count: > 0 } assigned)
+                                            {
+                                                <span class="assignee-count">@AssigneeNames(category, assigned)</span>
+                                            }
+                                        </button>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </li>
+            }
+        </ul>
+    </section>
+}
+
 @code {
-    [Parameter]
-    public Guid? Id { get; set; }
+    private enum Mode { WorkItem, Category }
 
-    // Pre-selects the order when "+ Ny opgave" is opened from an order's task list.
-    [SupplyParameterFromQuery(Name = "orderId")]
-    public Guid? PresetOrderId { get; set; }
+    private static readonly (string Value, string Label)[] Kinds =
+    [
+        ("Task", "Opgave"),
+        ("Project", "Projekt"),
+        ("Ticket", "Sag")
+    ];
 
-    private TaskFormModel formModel = new();
-    private IReadOnlyList<OrderResponse> orders = [];
+    private Mode mode = Mode.WorkItem;
+    private Guid? editingCategoryId;
+    private Guid? editingWorkItemId;
+    private IReadOnlyList<DepartmentResponse> departments = [];
+    private IReadOnlyList<PlannableCategoryResponse> categories = [];
+    private CategoryForm categoryForm = new();
+    private WorkItemForm workForm = new();
+    private string assigneeToAdd = "";
     private bool isLoading = true;
-    private bool isSubmitting;
-    private string? loadError;
-    private string? submitError;
+    private bool isBusy;
+    private string? error;
+    private string? notice;
 
-    private bool IsEdit => Id is not null;
+    private bool IsEditing => editingCategoryId is not null || editingWorkItemId is not null;
 
-    private string BackUrl =>
-        Id is Guid id ? $"tasks/{id:D}"
-        : PresetOrderId is Guid orderId ? $"tasks?orderId={orderId:D}"
-        : "tasks";
+    private string Title => (mode, IsEditing) switch
+    {
+        (Mode.Category, true) => "Rediger kategori",
+        (Mode.Category, false) => "Ny kategori",
+        (_, true) => "Rediger opgave",
+        _ => "Ny opgave"
+    };
 
-    private IReadOnlyList<OrderResponse> OpenOrders =>
-        orders.Where(order => string.Equals(order.Status, "Open", StringComparison.OrdinalIgnoreCase)).ToArray();
+    private IReadOnlyList<DepartmentPersonResponse> AvailableAssignees
+    {
+        get
+        {
+            if (!Guid.TryParse(workForm.CategoryId, out var categoryId))
+                return [];
+            var category = categories.FirstOrDefault(item => item.Id == categoryId);
+            return category is null
+                ? []
+                : departments.FirstOrDefault(item => item.Id == category.DepartmentId)?.Members
+                    .Where(employee => string.Equals(employee.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(employee => employee.Name)
+                    .ToArray() ?? [];
+        }
+    }
 
-    protected override Task OnParametersSetAsync() =>
-        AuthState.IsManagerOrAdmin ? LoadAsync() : Task.CompletedTask;
+    protected override Task OnInitializedAsync() => LoadAsync();
 
     private async Task LoadAsync()
     {
         isLoading = true;
-        loadError = null;
-        submitError = null;
-        formModel = new TaskFormModel();
-
-        var orderResult = await OrdersApiClient.GetOrdersAsync();
-        if (!orderResult.IsSuccess)
-        {
-            loadError = string.Join(" ", orderResult.Errors.Select(error => error.Message));
-            isLoading = false;
-            return;
-        }
-
-        orders = orderResult.Value!.Items.ToArray();
-
-        if (Id is Guid id)
-        {
-            var taskResult = await TasksApiClient.GetTaskAsync(id);
-            if (!taskResult.IsSuccess)
-            {
-                loadError = string.Join(" ", taskResult.Errors.Select(error => error.Message));
-                isLoading = false;
-                return;
-            }
-
-            var task = taskResult.Value!;
-            formModel.OrderId = task.OrderId;
-            formModel.Title = task.Title;
-            formModel.Description = task.Description;
-        }
-        else if (OpenOrders.Any(order => order.Id == PresetOrderId))
-        {
-            formModel.OrderId = PresetOrderId;
-        }
-
+        error = null;
+        var departmentResult = await DepartmentsApi.GetDepartmentsAsync();
+        var categoryResult = await PlanningApi.GetPlannableCategoriesAsync();
+        if (departmentResult.IsSuccess)
+            departments = departmentResult.Value!.Items
+                .Where(department => department.ManagedByMe || AuthState.IsAdministrator)
+                .ToArray();
+        if (categoryResult.IsSuccess)
+            categories = categoryResult.Value!.Items;
+        var messages = departmentResult.Errors.Concat(categoryResult.Errors).Select(item => item.Message).ToArray();
+        error = messages.Length == 0 ? null : string.Join(" ", messages);
         isLoading = false;
     }
 
-    private async Task Submit()
+    private void SwitchMode(Mode next)
     {
-        if (formModel.OrderId is not Guid orderId || string.IsNullOrWhiteSpace(formModel.Title))
+        mode = next;
+        error = notice = null;
+    }
+
+    private async Task EditCategory(PlannableCategoryResponse category)
+    {
+        editingWorkItemId = null;
+        editingCategoryId = category.Id;
+        mode = Mode.Category;
+        error = notice = null;
+        categoryForm = new CategoryForm
         {
-            return;
-        }
+            DepartmentId = category.DepartmentId.ToString(),
+            Name = category.Name,
+            Description = category.Description
+        };
+        await ScrollToFormAsync();
+    }
 
-        isSubmitting = true;
-        submitError = null;
+    private async Task EditWorkItem(PlannableCategoryResponse category, WorkItemResponse item)
+    {
+        editingCategoryId = null;
+        editingWorkItemId = item.Id;
+        mode = Mode.WorkItem;
+        error = notice = null;
+        assigneeToAdd = "";
+        var first = item.Assignments?.FirstOrDefault();
+        workForm = new WorkItemForm
+        {
+            CategoryId = category.Id.ToString(),
+            Name = item.Name,
+            Description = item.Description,
+            Kind = item.Kind,
+            AssignmentOnly = item.AssignmentOnly || item.Assignments is { Count: > 0 },
+            ExpectedHours = first?.ExpectedHours ?? 1m,
+            ExpectedDeadline = first?.ExpectedDeadline.ToDateTime(TimeOnly.MinValue) ?? DateTime.Today.AddDays(7)
+        };
+        foreach (var assignment in item.Assignments ?? [])
+            workForm.AssignedEmployeeIds.Add(assignment.EmployeeId);
+        await ScrollToFormAsync();
+    }
 
-        var title = formModel.Title.Trim();
-        // The backend requires a non-null description, but an empty one is allowed.
-        var description = formModel.Description?.Trim() ?? "";
+    private void CancelEdit()
+    {
+        editingCategoryId = editingWorkItemId = null;
+        categoryForm = new();
+        workForm = new();
+        assigneeToAdd = "";
+        error = notice = null;
+    }
 
-        var result = Id is Guid id
-            ? await TasksApiClient.UpdateTaskAsync(id, new UpdateTaskRequest(title, description))
-            : await TasksApiClient.CreateTaskAsync(new CreateTaskRequest(orderId, title, description));
+    private async Task ScrollToFormAsync()
+    {
+        try { await JS.InvokeVoidAsync("scrollTo", 0, 0); }
+        catch (JSException) { }
+    }
 
-        isSubmitting = false;
+    private Task SaveCategoryAsync() =>
+        editingCategoryId is Guid id ? UpdateCategoryAsync(id) : CreateCategoryAsync();
 
+    private Task SaveWorkItemAsync() =>
+        editingWorkItemId is Guid id ? UpdateWorkItemAsync(id) : CreateWorkItemAsync();
+
+    private async Task UpdateCategoryAsync(Guid categoryId)
+    {
+        isBusy = true;
+        error = notice = null;
+        var name = categoryForm.Name.Trim();
+        var result = await PlanningApi.UpdateCategoryAsync(categoryId, new UpdateCategoryRequest(name, categoryForm.Description));
         if (result.IsSuccess)
         {
-            // Creating returns no id, so show the order's task list; editing returns to the task itself.
-            Navigation.NavigateTo(IsEdit ? BackUrl : $"tasks?orderId={orderId:D}");
+            CancelEdit();
+            notice = $"Kategorien \"{name}\" er opdateret.";
+            await LoadAsync();
         }
-        else
+        else error = Errors(result);
+        isBusy = false;
+    }
+
+    private async Task UpdateWorkItemAsync(Guid workItemId)
+    {
+        if (!AssigneesAreValid()) return;
+        isBusy = true;
+        error = notice = null;
+        var name = workForm.Name.Trim();
+        var result = await PlanningApi.UpdateWorkItemAsync(workItemId,
+            new UpdateWorkItemRequest(name, workForm.Description, workForm.Kind, workForm.AssignmentOnly, Assignments()));
+        if (result.IsSuccess)
         {
-            submitError = string.Join(" ", result.Errors.Select(error => error.Message));
+            CancelEdit();
+            notice = $"Opgaven \"{name}\" er opdateret.";
+            await LoadAsync();
         }
+        else error = Errors(result);
+        isBusy = false;
+    }
+
+    private bool AssigneesAreValid()
+    {
+        var available = AvailableAssignees.Select(employee => employee.EmployeeId).ToHashSet();
+        if (workForm.AssignedEmployeeIds.All(available.Contains))
+            return true;
+        error = "Vælg kun medarbejdere, der tilhører den valgte afdeling.";
+        return false;
+    }
+
+    private CreateWorkItemAssignmentRequest[] Assignments() =>
+        workForm.AssignedEmployeeIds
+            .Select(id => new CreateWorkItemAssignmentRequest(id, workForm.ExpectedHours, DateOnly.FromDateTime(workForm.ExpectedDeadline)))
+            .ToArray();
+
+    private string AssigneeNames(PlannableCategoryResponse category, IReadOnlyList<WorkItemAssignmentResponse> assigned)
+    {
+        var members = departments.FirstOrDefault(item => item.Id == category.DepartmentId)?.Members ?? [];
+        var names = assigned
+            .Select(assignment => members.FirstOrDefault(member => member.EmployeeId == assignment.EmployeeId)?.Name ?? "Ukendt")
+            .ToArray();
+        return names.Length <= 2 ? string.Join(", ", names) : $"{names[0]}, {names[1]} +{names.Length - 2}";
+    }
+
+    private async Task CreateCategoryAsync()
+    {
+        if (!Guid.TryParse(categoryForm.DepartmentId, out var departmentId)) return;
+        isBusy = true;
+        error = notice = null;
+        var result = await PlanningApi.CreateCategoryAsync(departmentId,
+            new CreateCategoryRequest(categoryForm.Name.Trim(), Description: categoryForm.Description));
+        if (result.IsSuccess)
+        {
+            notice = $"Kategorien \"{categoryForm.Name.Trim()}\" er oprettet. Du kan nu oprette opgaver i den.";
+            categoryForm = new();
+            await LoadAsync();
+            mode = Mode.WorkItem;
+            workForm = new() { CategoryId = result.Value!.Id.ToString() };
+        }
+        else error = Errors(result);
+        isBusy = false;
+    }
+
+    private async Task CreateWorkItemAsync()
+    {
+        if (!Guid.TryParse(workForm.CategoryId, out var categoryId)) return;
+        if (!AssigneesAreValid()) return;
+        isBusy = true;
+        error = notice = null;
+        var result = await PlanningApi.CreateWorkItemAsync(categoryId,
+            new CreateWorkItemRequest(workForm.Name.Trim(), workForm.Description, workForm.Kind, workForm.AssignmentOnly, Assignments()));
+        if (result.IsSuccess)
+        {
+            notice = $"Opgaven \"{workForm.Name.Trim()}\" er oprettet.";
+            workForm = new() { CategoryId = workForm.CategoryId };
+            await LoadAsync();
+        }
+        else error = Errors(result);
+        isBusy = false;
+    }
+
+    private void ClearAssignees()
+    {
+        workForm.AssignedEmployeeIds.Clear();
+        assigneeToAdd = "";
+    }
+
+    private void AssignmentOnlyChanged()
+    {
+        if (!workForm.AssignmentOnly)
+            ClearAssignees();
+    }
+
+    private void AddAssignee()
+    {
+        if (Guid.TryParse(assigneeToAdd, out var employeeId))
+            workForm.AssignedEmployeeIds.Add(employeeId);
+        assigneeToAdd = "";
+    }
+
+    private static string KindLabel(string kind) => kind switch
+    {
+        "Project" => "Projekt",
+        "Ticket" => "Sag",
+        _ => "Opgave"
+    };
+
+    private static string Errors<T>(ApiResult<T> result) => string.Join(" ", result.Errors.Select(item => item.Message));
+
+    private sealed class CategoryForm
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Vælg en afdeling.")]
+        public string DepartmentId { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Kategorien skal have et navn.")]
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+    }
+
+    private sealed class WorkItemForm
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Vælg en kategori.")]
+        public string CategoryId { get; set; } = "";
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Opgaven skal have et navn.")]
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public string Kind { get; set; } = "Task";
+        public bool AssignmentOnly { get; set; }
+        public HashSet<Guid> AssignedEmployeeIds { get; } = [];
+        [System.ComponentModel.DataAnnotations.Range(typeof(decimal), "0.25", "10000", ErrorMessage = "Angiv mindst 0,25 timer.")]
+        public decimal ExpectedHours { get; set; } = 1m;
+        public DateTime ExpectedDeadline { get; set; } = DateTime.Today.AddDays(7);
     }
 }

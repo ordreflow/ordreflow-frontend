@@ -21,7 +21,6 @@ public sealed class ExportTimeEntriesPageTests : PageTestContext
 
     public ExportTimeEntriesPageTests()
     {
-        Services.AddScoped<TasksApiClient>();
         Services.AddScoped<ITimeEntriesApiClient, TimeEntriesApiClient>();
         download = JSInterop.SetupModule("./js/download-file.js");
         download.SetupVoid("downloadFile", _ => true).SetVoidResult();

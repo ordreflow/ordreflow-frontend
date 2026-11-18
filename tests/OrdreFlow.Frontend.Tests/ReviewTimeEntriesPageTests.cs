@@ -20,7 +20,6 @@ public sealed class ReviewTimeEntriesPageTests : PageTestContext
 
     public ReviewTimeEntriesPageTests()
     {
-        Services.AddScoped<TasksApiClient>();
         Services.AddScoped<ITimeEntriesApiClient, TimeEntriesApiClient>();
 
         anna = new UserResponse(Guid.NewGuid(), "Anna", "anna@example.com", "Employee", "Active", DateTime.UtcNow, Manager.Id);

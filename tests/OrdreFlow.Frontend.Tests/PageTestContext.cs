@@ -19,9 +19,14 @@ public abstract class PageTestContext : TestContext
         JSInterop.SetupVoid("localStorage.setItem", _ => true).SetVoidResult();
         Services.AddSingleton(new HttpClient(Api) { BaseAddress = new Uri("https://localhost/") });
         Services.AddScoped<AuthState>();
-        Services.AddScoped<UsersApiClient>();
-        Services.AddScoped<OrdersApiClient>();
-        Api.Json("api/users/me", Manager);
+        Services.AddScoped<EmployeesApiClient>();
+        Services.AddScoped<WorkItemsApiClient>();
+        Services.AddScoped<WorkPlanningApiClient>();
+        Services.AddScoped<DepartmentsApiClient>();
+        Services.AddScoped<ExportsApiClient>();
+        Api.Json("api/employees/me", new EmployeeResponse(
+            Manager.Id, Manager.Name, Manager.Email, null, Manager.Status, Manager.CreatedAt,
+            ["DepartmentManager", "CatagoryReviewer", "Payroll"]));
     }
 
     protected sealed class TestApi : HttpMessageHandler

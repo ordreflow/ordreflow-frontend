@@ -21,7 +21,6 @@ public sealed class TimeEntriesPageTests : PageTestContext
 
     public TimeEntriesPageTests()
     {
-        Services.AddScoped<TasksApiClient>();
         Services.AddScoped<ITimeEntriesApiClient, TimeEntriesApiClient>();
         Api.Json("api/orders", new ViewOrdersResponse([]));
         Api.Json("api/tasks", new ViewTasksResponse([]));

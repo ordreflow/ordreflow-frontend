@@ -1,146 +1,83 @@
-
+@page "/reports/top-categories"
 @page "/reports/top-orders"
 @implements IAsyncDisposable
 @using System.Globalization
-@inject ReportsApiClient ReportsApiClient
+@inject ReportsApiClient ReportsApi
 @inject AuthState AuthState
 @inject IJSRuntime JS
 
-<PageTitle>Top 10 ordrer | OrdreFlow</PageTitle>
+<PageTitle>Top 10 kategorier | OrdreFlow</PageTitle>
 
 <section class="report-page">
     <header class="report-header">
         <p class="eyebrow">Rapporter</p>
-        <h1>Top 10 ordrer</h1>
-        <p class="muted">
-            De ordrer med flest godkendte timer i den valgte periode.
-        </p>
+        <h1>Top 10 kategorier</h1>
+        <p class="muted">Kategorier med flest godkendte timer i den valgte periode.</p>
     </header>
 
-    @if (!CanView)
+    @if (!AuthState.CanViewReports)
     {
-        <p class="alert alert-info">
-            Rapporten er kun tilgængelig for aktive managere og administratorer.
-        </p>
+        <p class="alert alert-info">Rapporten kræver tilladelsen Afdelingsleder eller Administrator.</p>
     }
     else
     {
-        <form class="report-toolbar"
-              @onsubmit="LoadAsync"
-              @onsubmit:preventDefault>
-
+        <form class="report-toolbar" @onsubmit="LoadAsync" @onsubmit:preventDefault>
             <div>
                 <label for="from-date">Fra</label>
-                <input id="from-date"
-                       type="date"
-                       class="form-control"
-                       @bind="fromDate" />
+                <input id="from-date" type="date" class="form-control" @bind="fromDate" />
             </div>
-
             <div>
                 <label for="to-date">Til</label>
-                <input id="to-date"
-                       type="date"
-                       class="form-control"
-                       @bind="toDate" />
+                <input id="to-date" type="date" class="form-control" @bind="toDate" />
             </div>
-
-            <button type="submit"
-                    class="btn btn-primary"
-                    disabled="@isLoading">
-                Vis rapport
-            </button>
+            <button type="submit" class="btn btn-primary" disabled="@isLoading">Vis rapport</button>
         </form>
 
         @if (validationError is not null)
         {
-            <p class="alert alert-warning" role="alert">
-                @validationError
-            </p>
+            <p class="alert alert-warning" role="alert">@validationError</p>
         }
-
         @if (isLoading)
         {
             <p role="status">Henter rapport...</p>
         }
         else if (loadError is not null)
         {
-            <div class="alert alert-danger" role="alert">
-                <p>@loadError</p>
-                <button type="button"
-                        class="btn btn-outline-danger"
-                        @onclick="LoadAsync">
-                    Prøv igen
-                </button>
-            </div>
+            <p class="alert alert-danger" role="alert">@loadError</p>
+            <button class="btn btn-outline-danger" @onclick="LoadAsync">Prøv igen</button>
         }
         else if (items is not null)
         {
             @if (items.Count == 0)
             {
-                <p class="empty-state">
-                    Ingen godkendte timer i den valgte periode.
-                </p>
+                <p class="empty-state">Ingen godkendte timer i perioden.</p>
             }
             else
             {
-                <p class="muted" aria-live="polite">
-                    @reportFrom.ToString("d. MMM yyyy", Culture)
-                    &ndash;
-                    @reportTo.ToString("d. MMM yyyy", Culture)
-                    &middot;
-                    @items.Count @(items.Count == 1 ? "ordre" : "ordrer")
-                    &middot;
-                    @FormatHours(items.Sum(item => item.TotalHours))
-                    timer samlet for de viste ordrer
-                </p>
-
                 <p class="muted">
-                    Hold musen over søjlerne for at se opgavefordelingen.
-                    Klik på en søjle for at se flere detaljer.
+                    @reportFrom.ToString("d. MMM yyyy", Culture)–@reportTo.ToString("d. MMM yyyy", Culture)
+                    · @items.Count kategorier · @FormatHours(items.Sum(item => item.TotalHours)) timer
                 </p>
-
-                <div class="chart-card">
-                    <div class="chart-host" @ref="chartHost"></div>
-                </div>
-
-                @if (selectedOrder is not null)
+                <div class="chart-card"><div class="chart-host" @ref="chartHost"></div></div>
+                @if (selectedCategory is not null)
                 {
-                    <div class="report-table-section">
-                        <h2>@selectedOrder.OrderName</h2>
-
-                        <p class="muted">
-                            Opgavefordeling –
-                            @FormatHours(selectedOrder.TotalHours) timer samlet
-                        </p>
-
+                    <section class="report-table-section">
+                        <h2>@selectedCategory.CategoryName <small class="muted">· @selectedCategory.DepartmentName</small></h2>
+                        <p class="muted">Arbejdsopgavefordeling · @FormatHours(selectedCategory.TotalHours) timer</p>
                         <table class="report-table">
-                            <thead>
-                                <tr>
-                                    <th scope="col">Opgave</th>
-                                    <th scope="col" class="num">Timer</th>
-                                    <th scope="col" class="num">Andel</th>
-                                </tr>
-                            </thead>
+                            <thead><tr><th>Arbejdsopgave</th><th class="num">Timer</th><th class="num">Andel</th></tr></thead>
                             <tbody>
-                                @foreach (var task in selectedOrder.Tasks)
+                                @foreach (var task in selectedCategory.Tasks)
                                 {
                                     <tr>
                                         <td>@task.TaskName</td>
-                                        <td class="num">
-                                            @FormatHours(task.TotalHours)
-                                        </td>
-                                        <td class="num">
-                                            @FormatHours(
-                                                selectedOrder.TotalHours > 0
-                                                    ? task.TotalHours / selectedOrder.TotalHours * 100
-                                                    : 0)%
-                                        </td>
+                                        <td class="num">@FormatHours(task.TotalHours)</td>
+                                        <td class="num">@FormatHours(selectedCategory.TotalHours > 0 ? task.TotalHours / selectedCategory.TotalHours * 100 : 0)%</td>
                                     </tr>
                                 }
                             </tbody>
                         </table>
-                    </div>
+                    </section>
                 }
             }
         }
@@ -148,147 +85,74 @@
 </section>
 
 @code {
-    private static readonly CultureInfo Culture = new("da-DK");
-
-    private DateOnly fromDate =
-        new(DateTime.Today.Year, DateTime.Today.Month, 1);
-
-    private DateOnly toDate =
-        DateOnly.FromDateTime(DateTime.Today);
-
+    private static readonly CultureInfo Culture = CultureInfo.GetCultureInfo("da-DK");
+    private DateOnly fromDate = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateOnly toDate = DateOnly.FromDateTime(DateTime.Today);
     private DateOnly reportFrom;
     private DateOnly reportTo;
-
-    private IReadOnlyList<TopOrdersResponse>? items;
-
-    private TopOrdersResponse? selectedOrder;
-
+    private IReadOnlyList<TopCategoryResponse>? items;
+    private TopCategoryResponse? selectedCategory;
     private bool isLoading;
     private bool renderPending;
-
     private string? loadError;
     private string? validationError;
-
     private ElementReference chartHost;
     private IJSObjectReference? chartModule;
-
     private DotNetObjectReference<TopOrders>? dotNetReference;
 
-    private bool CanView =>
-        AuthState.User is
-        {
-            Role: "Manager" or "Admin",
-            Status: "Active"
-        };
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (CanView)
-        {
-            await LoadAsync();
-        }
-    }
+    protected override Task OnInitializedAsync() => AuthState.CanViewReports ? LoadAsync() : Task.CompletedTask;
 
     private async Task LoadAsync()
     {
         validationError = null;
-
         if (toDate < fromDate)
         {
-            validationError =
-                "Slutdatoen skal være den samme som eller efter startdatoen.";
+            validationError = "Slutdatoen skal være samme dag eller efter startdatoen.";
             return;
         }
-
         isLoading = true;
         loadError = null;
-        selectedOrder = null;
-
-        try
+        selectedCategory = null;
+        var result = await ReportsApi.GetTopCategoriesAsync(fromDate, toDate);
+        if (result.IsSuccess)
         {
-            var result = await ReportsApiClient.GetTopOrdersAsync(
-                fromDate,
-                toDate);
-
-            if (result.IsSuccess)
-            {
-                items = result.Value!.Items;
-                reportFrom = fromDate;
-                reportTo = toDate;
-                renderPending = true;
-            }
-            else
-            {
-                items = null;
-                renderPending = false;
-
-                loadError = string.Join(
-                    " ",
-                    result.Errors.Select(error => error.Message));
-            }
+            items = result.Value!.Items;
+            reportFrom = fromDate;
+            reportTo = toDate;
+            renderPending = true;
         }
-        catch (Exception)
+        else
         {
             items = null;
             renderPending = false;
-            loadError = "Der opstod en fejl ved hentning af rapporten.";
+            loadError = string.Join(" ", result.Errors.Select(item => item.Message));
         }
-        finally
-        {
-            isLoading = false;
-        }
+        isLoading = false;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!renderPending || items is not { Count: > 0 })
-        {
-            return;
-        }
-
+        if (!renderPending || items is not { Count: > 0 }) return;
         renderPending = false;
-
-        chartModule ??= await JS.InvokeAsync<IJSObjectReference>(
-            "import",
-            "./js/top-orders-chart.js");
-
+        chartModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/top-orders-chart.js");
         dotNetReference ??= DotNetObjectReference.Create(this);
-
-        await chartModule.InvokeVoidAsync(
-            "render",
-            chartHost,
-            items,
-            dotNetReference);
+        await chartModule.InvokeVoidAsync("render", chartHost, items, dotNetReference);
     }
 
     [JSInvokable]
-    public Task SelectOrder(string orderId)
+    public Task SelectCategory(string categoryId)
     {
-        if (Guid.TryParse(orderId, out var id))
-        {
-            selectedOrder = items?.FirstOrDefault(
-                item => item.OrderId == id);
-        }
-
+        if (Guid.TryParse(categoryId, out var id))
+            selectedCategory = items?.FirstOrDefault(item => item.CategoryId == id);
         return InvokeAsync(StateHasChanged);
     }
 
-    private static string FormatHours(decimal hours) =>
-        hours.ToString("0.##", Culture);
+    private static string FormatHours(decimal hours) => hours.ToString("0.##", Culture);
 
     public async ValueTask DisposeAsync()
     {
         dotNetReference?.Dispose();
-
         if (chartModule is not null)
-        {
-            try
-            {
-                await chartModule.DisposeAsync();
-            }
-            catch (JSDisconnectedException)
-            {
-            }
-        }
+            await chartModule.DisposeAsync();
     }
 }

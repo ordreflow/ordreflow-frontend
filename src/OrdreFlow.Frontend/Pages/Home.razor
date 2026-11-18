@@ -1,9 +1,8 @@
 @page "/"
 @using System.Globalization
-@inject ITimeEntriesApiClient TimeEntriesApiClient
-@inject OrdersApiClient OrdersApiClient
-@inject TasksApiClient TasksApiClient
-@inject UsersApiClient UsersApiClient
+@inject ITimeEntriesApiClient TimeEntriesApi
+@inject WorkItemsApiClient WorkItemsApi
+@inject EmployeesApiClient EmployeesApi
 @inject NavigationManager Navigation
 
 <PageTitle>OrdreFlow</PageTitle>
@@ -11,7 +10,7 @@
 <div class="dashboard">
     <section class="dashboard-main">
         <div class="greeting">
-            <h1>Hej@(string.IsNullOrWhiteSpace(userName) ? "" : $" {userName}")</h1>
+            <h1>Hej@(string.IsNullOrWhiteSpace(employeeName) ? "" : $" {employeeName}")</h1>
             <p>Her er dit overblik for ugen.</p>
             @if (catalogError is not null)
             {
@@ -74,7 +73,6 @@
                 @if (selectedDay is DateTime selected)
                 {
                     var selectedEntries = EntriesOn(selected);
-
                     <div class="day-panel">
                         <h2 class="day-panel-title">
                             @DayNames[DayIndex(selected)] @FormatShortDate(selected)
@@ -93,17 +91,15 @@
                                     <li class="entry">
                                         <div class="entry-row">
                                             <div class="entry-col">
-                                                <span class="entry-label">Sag</span>
-                                                <span class="entry-value">@OrderName(entry.TaskId)</span>
+                                                <span class="entry-label">Afdeling · kategori</span>
+                                                <span class="entry-value">@DepartmentAndCategory(entry.TaskId)</span>
                                             </div>
                                             <div class="entry-col">
-                                                <span class="entry-label">Opgave</span>
-                                                <span class="entry-value">@TaskName(entry.TaskId)</span>
+                                                <span class="entry-label">Arbejdsopgave</span>
+                                                <span class="entry-value">@WorkName(entry.TaskId)</span>
                                             </div>
                                             <span class="entry-hours">@FormatHours(entry.Hours) t</span>
-                                            <button type="button"
-                                                    class="entry-details-btn"
-                                                    @onclick="() => OpenDetails(entry)">
+                                            <button type="button" class="entry-details-btn" @onclick="() => OpenDetails(entry)">
                                                 Detaljer
                                             </button>
                                         </div>
@@ -122,7 +118,6 @@
             <span class="total-label">Total for ugen</span>
             <span class="total-value">@(isLoading || loadError is not null ? "–" : FormatHours(WeekTotal)) <small>timer</small></span>
         </div>
-
         <div class="register-bar">
             <button type="button" class="btn btn-primary register-btn" @onclick="RegisterNewTime">
                 Registrer ny tid
@@ -134,7 +129,6 @@
 @if (detailsEntry is not null)
 {
     <div class="details-backdrop" @onclick="CloseDetails"></div>
-
     <div class="details-dialog" role="dialog" aria-modal="true" aria-labelledby="details-title">
         <div class="details-header">
             <button type="button" class="details-close" aria-label="Luk" @onclick="CloseDetails">
@@ -142,16 +136,24 @@
             </button>
             <h2 id="details-title">Detaljer</h2>
         </div>
-
         <dl class="details-list">
-            <dt>Sag</dt>
-            <dd>@OrderName(detailsEntry.TaskId)</dd>
-            <dt>Opgave</dt>
-            <dd>@TaskName(detailsEntry.TaskId)</dd>
+            <dt>Afdeling</dt>
+            <dd>@DepartmentName(detailsEntry.TaskId)</dd>
+            <dt>Kategori</dt>
+            <dd>@CategoryName(detailsEntry.TaskId)</dd>
+            <dt>Arbejdsopgave</dt>
+            <dd>@WorkName(detailsEntry.TaskId)</dd>
             <dt>Dato</dt>
             <dd>@DayNames[DayIndex(detailsEntry.Date)] @FormatShortDate(detailsEntry.Date)</dd>
             <dt>Varighed</dt>
             <dd>@FormatHours(detailsEntry.Hours) timer</dd>
+            <dt>Status</dt>
+            <dd>@StatusLabel(detailsEntry.Status)</dd>
+            @if (!string.IsNullOrWhiteSpace(detailsEntry.RejectionReason))
+            {
+                <dt>Returneringsårsag</dt>
+                <dd>@detailsEntry.RejectionReason</dd>
+            }
             @if (!string.IsNullOrWhiteSpace(detailsEntry.Comment))
             {
                 <dt>Kommentar</dt>
@@ -159,20 +161,18 @@
             }
         </dl>
 
-        @* Appendices are not part of this milestone (M2). *@
-        <button type="button" class="btn btn-outline-secondary w-100" disabled>Bilag</button>
-        <p class="details-hint">Bilag kommer i en senere version.</p>
-
         @if (detailsError is not null)
         {
             <p class="validation-message" role="alert">@detailsError</p>
         }
-
         <div class="details-actions">
-            <button type="button" class="btn btn-outline-primary" @onclick="EditDetails">Rediger</button>
-            <button type="button" class="btn btn-danger" disabled="@isDeleting" @onclick="DeleteDetails">
-                @(isDeleting ? "Sletter..." : confirmDelete ? "Bekræft sletning" : "Slet")
-            </button>
+            @if (detailsEntry.Status is "Draft" or "Rejected")
+            {
+                <button type="button" class="btn btn-outline-primary" @onclick="EditDetails">Rediger</button>
+                <button type="button" class="btn btn-danger" disabled="@isDeleting" @onclick="DeleteDetails">
+                    @(isDeleting ? "Sletter..." : confirmDelete ? "Bekræft sletning" : "Slet")
+                </button>
+            }
         </div>
     </div>
 }
@@ -188,9 +188,8 @@
     private DateTime? selectedDay;
     private TimeEntryResponse? detailsEntry;
     private IReadOnlyList<TimeEntryResponse> entries = [];
-    private IReadOnlyList<OrderResponse> orders = [];
-    private IReadOnlyList<TaskResponse> tasks = [];
-    private string? userName;
+    private IReadOnlyList<AccessibleWorkResponse> workItems = [];
+    private string? employeeName;
     private string? loadError;
     private string? catalogError;
     private string? detailsError;
@@ -203,57 +202,30 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var userRequest = UsersApiClient.GetMeAsync();
-        var ordersRequest = OrdersApiClient.GetOrdersAsync();
-        var tasksRequest = TasksApiClient.GetTasksAsync();
-
-        var userResult = await userRequest;
-        if (userResult.IsSuccess)
-        {
-            userName = userResult.Value!.Name;
-        }
-
-        SetCatalog(await ordersRequest, await tasksRequest);
+        var me = await EmployeesApi.GetMeAsync();
+        if (me.IsSuccess)
+            employeeName = me.Value!.Name;
+        await LoadCatalogAsync();
     }
 
     private async Task LoadCatalogAsync()
     {
-        var ordersRequest = OrdersApiClient.GetOrdersAsync();
-        var tasksRequest = TasksApiClient.GetTasksAsync();
-        SetCatalog(await ordersRequest, await tasksRequest);
-    }
-
-    private void SetCatalog(ApiResult<ViewOrdersResponse> ordersResult, ApiResult<ViewTasksResponse> tasksResult)
-    {
-        catalogError = null;
-        if (ordersResult.IsSuccess)
+        var result = await WorkItemsApi.GetAccessibleAsync();
+        if (result.IsSuccess)
         {
-            orders = ordersResult.Value!.Items.ToArray();
+            workItems = result.Value!.Items;
+            catalogError = null;
         }
         else
         {
-            catalogError = string.Join(" ", ordersResult.Errors.Select(error => error.Message));
-        }
-
-        if (tasksResult.IsSuccess)
-        {
-            tasks = tasksResult.Value!.Items.ToArray();
-        }
-        else
-        {
-            catalogError = string.Join(" ", new[] { catalogError }
-                .Where(message => !string.IsNullOrWhiteSpace(message))
-                .Concat(tasksResult.Errors.Select(error => error.Message)));
+            catalogError = string.Join(" ", result.Errors.Select(item => item.Message));
         }
     }
 
     protected override Task OnParametersSetAsync()
     {
         if (Date is DateTime date)
-        {
             weekStart = StartOfWeek(date);
-        }
-
         return LoadWeekAsync();
     }
 
@@ -263,23 +235,13 @@
         isLoading = true;
         loadError = null;
         entries = [];
-
-        var result = await TimeEntriesApiClient.GetEntriesAsync(
+        var result = await TimeEntriesApi.GetEntriesAsync(
             DateOnly.FromDateTime(weekStart), DateOnly.FromDateTime(weekStart.AddDays(6)));
-        if (version != loadVersion)
-        {
-            return;
-        }
-
+        if (version != loadVersion) return;
         if (result.IsSuccess)
-        {
             entries = result.Value!.Items.ToArray();
-        }
         else
-        {
-            loadError = string.Join(" ", result.Errors.Select(error => error.Message));
-        }
-
+            loadError = string.Join(" ", result.Errors.Select(item => item.Message));
         isLoading = false;
     }
 
@@ -309,7 +271,6 @@
 
     private void EditDetails() => Navigation.NavigateTo($"/register-time/{detailsEntry!.Id:D}");
 
-    // First click asks for confirmation, second click deletes.
     private async Task DeleteDetails()
     {
         if (!confirmDelete)
@@ -317,12 +278,10 @@
             confirmDelete = true;
             return;
         }
-
         isDeleting = true;
         detailsError = null;
-        var result = await TimeEntriesApiClient.DeleteAsync(detailsEntry!.Id);
+        var result = await TimeEntriesApi.DeleteAsync(detailsEntry!.Id);
         isDeleting = false;
-
         if (result.IsSuccess)
         {
             CloseDetails();
@@ -330,38 +289,43 @@
         }
         else
         {
-            detailsError = string.Join(" ", result.Errors.Select(error => error.Message));
+            detailsError = string.Join(" ", result.Errors.Select(item => item.Message));
             confirmDelete = false;
         }
     }
 
     private List<TimeEntryResponse> EntriesOn(DateTime day) =>
-        entries.Where(entry => entry.Date.Date == day).ToList();
+        entries.Where(entry => entry.Date.Date == day.Date).ToList();
 
     private decimal HoursOn(DateTime day) =>
-        entries.Where(entry => entry.Date.Date == day).Sum(entry => entry.Hours);
+        entries.Where(entry => entry.Date.Date == day.Date).Sum(entry => entry.Hours);
 
-    private string TaskName(Guid taskId) =>
-        tasks.FirstOrDefault(task => task.Id == taskId)?.Title ?? taskId.ToString("D");
-
-    private string OrderName(Guid taskId)
-    {
-        var orderId = tasks.FirstOrDefault(task => task.Id == taskId)?.OrderId;
-        return orders.FirstOrDefault(order => order.Id == orderId)?.Name ?? "Ukendt sag";
-    }
+    private AccessibleWorkResponse? FindWork(Guid id) => workItems.FirstOrDefault(item => item.Id == id);
+    private string WorkName(Guid id) => FindWork(id)?.Name ?? "Arbejdsopgave ikke længere tilgængelig";
+    private string CategoryName(Guid id) => FindWork(id)?.CategoryName ?? "Kategori ikke tilgængelig";
+    private string DepartmentName(Guid id) => FindWork(id)?.DepartmentName ?? "Afdeling ikke tilgængelig";
+    private string DepartmentAndCategory(Guid id) => FindWork(id) is { } work
+        ? $"{work.DepartmentName} · {work.CategoryName}"
+        : "Arbejdsopgaven er ikke længere tilgængelig";
 
     private void RegisterNewTime() =>
         Navigation.NavigateTo(selectedDay is DateTime day
             ? $"/register-time?date={day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}"
             : "/register-time");
 
+    private static string StatusLabel(string status) => status switch
+    {
+        "Draft" => "Kladde",
+        "ReadyForApproval" => "Afventer review",
+        "Approved" => "Godkendt",
+        "Rejected" => "Returneret",
+        "Closed" => "Afsluttet",
+        _ => status
+    };
+
     private static int DayIndex(DateTime date) => ((int)date.DayOfWeek + 6) % 7;
-
     private static DateTime StartOfWeek(DateTime date) => date.Date.AddDays(-DayIndex(date));
-
     private static string FormatShortDate(DateTime date) => $"{date.Day}/{date.Month}";
-
-    // Danish decimal comma without depending on da-DK culture data being loaded in WebAssembly.
     private static string FormatHours(decimal hours) =>
         hours.ToString("0.##", CultureInfo.InvariantCulture).Replace('.', ',');
 }

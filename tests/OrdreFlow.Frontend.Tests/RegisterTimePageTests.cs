@@ -21,7 +21,6 @@ public sealed class RegisterTimePageTests : PageTestContext
 
     public RegisterTimePageTests()
     {
-        Services.AddScoped<TasksApiClient>();
         Services.AddScoped<ITimeEntriesApiClient, TimeEntriesApiClient>();
 
         shelves = new TaskResponse(Guid.NewGuid(), order.Id, "Opsæt reoler", "");
