@@ -532,7 +532,7 @@
         public string Kind { get; set; } = "Task";
         public bool AssignmentOnly { get; set; }
         public HashSet<Guid> AssignedEmployeeIds { get; } = [];
-        [System.ComponentModel.DataAnnotations.Range(typeof(decimal), "0.25", "10000", ErrorMessage = "Angiv mindst 0,25 timer.")]
+        [System.ComponentModel.DataAnnotations.Range(0.25, 10000, ErrorMessage = "Angiv mindst 0,25 timer.")]
         public decimal ExpectedHours { get; set; } = 1m;
         public DateTime ExpectedDeadline { get; set; } = DateTime.Today.AddDays(7);
     }

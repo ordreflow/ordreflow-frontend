@@ -1,12 +1,12 @@
-.orders-page { max-width: 1050px; margin: 0 auto; }
-.orders-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.75rem; }
-.orders-header h1 { font-size: 2rem; font-weight: 700; }
+.departments-page { max-width: 1050px; margin: 0 auto; }
+.departments-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.75rem; }
+.departments-header h1 { font-size: 2rem; font-weight: 700; }
 .eyebrow { color: var(--of-primary); text-transform: uppercase; letter-spacing: .1em; font-size: .75rem; font-weight: 700; margin-bottom: .4rem; }
 .muted { color: var(--of-muted); font-size: .9rem; }
-.orders-header p:last-child { margin: 0; }
-.orders-toolbar { display: grid; grid-template-columns: 1fr 220px; gap: 1rem; padding: 1.25rem; background: var(--of-surface); border: 1px solid var(--of-border); border-radius: var(--of-radius); margin-bottom: 1rem; }
+.departments-header p:last-child { margin: 0; }
+.departments-toolbar { display: grid; grid-template-columns: 1fr 220px; gap: 1rem; padding: 1.25rem; background: var(--of-surface); border: 1px solid var(--of-border); border-radius: var(--of-radius); margin-bottom: 1rem; }
 label { display: block; font-weight: 600; margin-bottom: .4rem; }
-.orders-list { list-style: none; padding: 0; display: grid; gap: .75rem; }
+.departments-list { list-style: none; padding: 0; display: grid; gap: .75rem; }
 .order-row { width: 100%; display: flex; align-items: center; gap: 1rem; padding: 1.15rem; border: 1px solid var(--of-border); background: var(--of-surface); border-radius: var(--of-radius); text-align: left; box-shadow: var(--of-shadow); color: var(--of-text); }
 .order-row:hover { border-color: var(--of-primary); background: var(--of-surface-alt); }
 .order-row:focus-visible { outline: 3px solid var(--of-primary); outline-offset: 3px; }
@@ -33,9 +33,9 @@ label { display: block; font-weight: 600; margin-bottom: .4rem; }
 .close-section p { font-size: .9rem; }
 .dialog-footer { display: flex; justify-content: flex-end; border-top: 1px solid var(--of-border); margin-top: 1.5rem; padding-top: 1rem; }
 @media (max-width: 600px) {
-    .orders-header { align-items: flex-start; flex-direction: column; }
-    .orders-header .btn { width: 100%; }
-    .orders-toolbar { grid-template-columns: 1fr; }
+    .departments-header { align-items: flex-start; flex-direction: column; }
+    .departments-header .btn { width: 100%; }
+    .departments-toolbar { grid-template-columns: 1fr; }
     .order-row { flex-wrap: wrap; gap: .75rem; }
     .arrow { display: none; }
     .order-dialog { padding: 1rem; }

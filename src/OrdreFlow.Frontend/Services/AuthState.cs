@@ -56,18 +56,6 @@ public class AuthState(IJSRuntime jsRuntime)
         Changed?.Invoke();
     }
 
-    public Task SetUserAsync(UserResponse user)
-    {
-        var permissions = user.Role switch
-        {
-            "Admin" => new[] { "Administrator" },
-            "Manager" => new[] { "DepartmentManager", "CatagoryReviewer" },
-            _ => new[] { "Employee" }
-        };
-        return SetUserAsync(new EmployeeResponse(
-            user.Id, user.Name, user.Email, null, user.Status, user.CreatedAt, permissions));
-    }
-
     public async Task SignOutAsync()
     {
         AccessToken = null;

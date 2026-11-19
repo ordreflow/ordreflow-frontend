@@ -9,8 +9,9 @@ namespace OrdreFlow.Frontend.Tests;
 
 public abstract class PageTestContext : TestContext
 {
-    protected readonly UserResponse Manager = new(
-        Guid.NewGuid(), "Manager", "manager@example.com", "Manager", "Active", DateTime.UtcNow);
+    protected readonly EmployeeResponse Manager = new(
+        Guid.NewGuid(), "Manager", "manager@example.com", null, "Active", DateTime.UtcNow,
+        ["DepartmentManager", "CatagoryReviewer", "Payroll"]);
 
     protected readonly TestApi Api = new();
 
@@ -24,9 +25,7 @@ public abstract class PageTestContext : TestContext
         Services.AddScoped<WorkPlanningApiClient>();
         Services.AddScoped<DepartmentsApiClient>();
         Services.AddScoped<ExportsApiClient>();
-        Api.Json("api/employees/me", new EmployeeResponse(
-            Manager.Id, Manager.Name, Manager.Email, null, Manager.Status, Manager.CreatedAt,
-            ["DepartmentManager", "CatagoryReviewer", "Payroll"]));
+        Api.Json("api/employees/me", Manager);
     }
 
     protected sealed class TestApi : HttpMessageHandler

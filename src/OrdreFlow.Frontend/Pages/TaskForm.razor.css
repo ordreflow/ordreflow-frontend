@@ -174,30 +174,113 @@
 /* Category overview */
 
 .category-overview h2 {
-    margin: 0 0 1rem;
+    margin: 0 0 0.25rem;
     font-size: 1.15rem;
     font-weight: 700;
 }
 
 .category-card {
     cursor: default;
+    padding: 0;
+    overflow: hidden;
+}
+
+.category-edit-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    position: relative;
+    width: 100%;
+    padding: 0.9rem 1.25rem;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+    .category-edit-btn:hover {
+        background: var(--of-primary-soft);
+    }
+
+.edit-hint {
+    position: absolute;
+    top: 0.9rem;
+    right: 1.25rem;
+    color: var(--of-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.category-edit-btn:hover .edit-hint,
+.category-edit-btn:focus-visible .edit-hint {
+    opacity: 1;
 }
 
 .category-items {
     width: 100%;
-    margin: 0.5rem 0 0;
-    padding: 0.5rem 0 0;
+    margin: 0;
+    padding: 0.35rem 0.6rem 0.6rem;
     border-top: 1px solid var(--of-border);
     list-style: none;
     font-size: 0.92rem;
 }
 
-    .category-items li {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0.2rem 0;
+.work-item-btn {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    min-height: 2.5rem;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid transparent;
+    border-radius: 0.6rem;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+    .work-item-btn:hover {
+        background: var(--of-surface-alt);
+        border-color: var(--of-border);
     }
+
+    .work-item-btn.selected {
+        background: var(--of-primary-soft);
+        border-color: var(--of-primary);
+    }
+
+.work-item-name {
+    font-weight: 500;
+}
+
+.assignee-count {
+    margin-left: auto;
+    color: var(--of-muted);
+    font-size: 0.8rem;
+}
+
+.edit-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.7rem 1rem;
+    margin-bottom: 1.25rem;
+    border-radius: 0.75rem;
+    background: var(--of-accent-soft);
+    color: #0e7490;
+    font-weight: 600;
+}
 
 .kind-tag {
     padding: 0.1rem 0.5rem;
