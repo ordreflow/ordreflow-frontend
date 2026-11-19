@@ -64,7 +64,7 @@
                     <div class="form-field">
                         <label for="department">Afdeling</label>
                         <InputSelect id="department" class="form-select form-select-lg" @bind-Value="categoryForm.DepartmentId"
-                                     disabled="@(editingCategoryId is not null)">
+                                     @bind-Value:after="ClearReviewers" disabled="@(editingCategoryId is not null)">
                             <option value="">Vælg afdeling</option>
                             @foreach (var department in departments)
                             {
@@ -82,6 +82,49 @@
                     <div class="form-field">
                         <label for="category-description">Beskrivelse <span class="of-muted">(valgfri)</span></label>
                         <InputTextArea id="category-description" class="form-control" rows="3" @bind-Value="categoryForm.Description" />
+                    </div>
+                    <div class="form-field assignment-panel">
+                        <label for="reviewer">Godkendes af</label>
+                        <p class="of-muted small mb-2">De valgte medarbejdere kan godkende og afvise tid i kategorien og får reviewer-rettigheder.</p>
+                        @if (categoryForm.DepartmentId.Length == 0)
+                        {
+                            <p class="of-muted mb-0">Vælg først en afdeling.</p>
+                        }
+                        else if (AvailableReviewers.Count == 0)
+                        {
+                            <p class="of-muted mb-0">Afdelingen har ingen aktive medarbejdere.</p>
+                        }
+                        else
+                        {
+                            <div class="assignee-picker">
+                                <select id="reviewer" class="form-select" @bind="reviewerToAdd">
+                                    <option value="">Vælg medarbejder</option>
+                                    @foreach (var person in AvailableReviewers.Where(item => !categoryForm.ReviewerIds.Contains(item.EmployeeId)))
+                                    {
+                                        <option value="@person.EmployeeId">@person.Name@(string.IsNullOrWhiteSpace(person.Title) ? "" : $" · {person.Title}")</option>
+                                    }
+                                </select>
+                                <button type="button" class="btn btn-outline-primary" disabled="@(reviewerToAdd.Length == 0)"
+                                        @onclick="AddReviewer">Tilføj</button>
+                            </div>
+                            @if (categoryForm.ReviewerIds.Count > 0)
+                            {
+                                <ul class="assignee-chips">
+                                    @foreach (var person in AvailableReviewers.Where(item => categoryForm.ReviewerIds.Contains(item.EmployeeId)))
+                                    {
+                                        <li @key="person.EmployeeId">
+                                            <span>@person.Name</span>
+                                            <button type="button" aria-label="Fjern @person.Name"
+                                                    @onclick="() => categoryForm.ReviewerIds.Remove(person.EmployeeId)">×</button>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        }
+                        @if (reviewerError is not null)
+                        {
+                            <p class="validation-message mt-2 mb-0" role="alert">@reviewerError</p>
+                        }
                     </div>
                     <button class="btn btn-primary submit-btn" type="submit" disabled="@isBusy">
                         @(isBusy ? "Gemmer..." : editingCategoryId is not null ? "Gem ændringer" : "Opret kategori")
@@ -226,6 +269,7 @@
                                 aria-label="Rediger kategorien @category.Name">
                             <span class="order-card-name">@category.Name</span>
                             <span class="order-card-customer">@category.DepartmentName · @category.WorkItems.Count @(category.WorkItems.Count == 1 ? "opgave" : "opgaver")</span>
+                            <span class="order-card-customer">Godkendes af: @ReviewerNames(category)</span>
                             <span class="edit-hint">Rediger</span>
                         </button>
                         @if (category.WorkItems.Count > 0)
@@ -276,6 +320,18 @@
     private CategoryForm categoryForm = new();
     private WorkItemForm workForm = new();
     private string assigneeToAdd = "";
+    private string reviewerToAdd = "";
+    private string? reviewerError;
+
+    // Managers and members of the chosen department, so a manager can also review the category.
+    private IReadOnlyList<DepartmentPersonResponse> AvailableReviewers =>
+        departments.FirstOrDefault(item => item.Id.ToString() == categoryForm.DepartmentId) is { } department
+            ? department.Managers.Concat(department.Members)
+                .Where(person => string.Equals(person.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                .DistinctBy(person => person.EmployeeId)
+                .OrderBy(person => person.Name)
+                .ToArray()
+            : [];
     private bool isLoading = true;
     private bool isBusy;
     private string? error;
@@ -344,6 +400,10 @@
             Name = category.Name,
             Description = category.Description
         };
+        foreach (var reviewerId in category.ReviewerIds ?? [])
+            categoryForm.ReviewerIds.Add(reviewerId);
+        reviewerToAdd = "";
+        reviewerError = null;
         await ScrollToFormAsync();
     }
 
@@ -376,6 +436,8 @@
         categoryForm = new();
         workForm = new();
         assigneeToAdd = "";
+        reviewerToAdd = "";
+        reviewerError = null;
         error = notice = null;
     }
 
@@ -393,10 +455,12 @@
 
     private async Task UpdateCategoryAsync(Guid categoryId)
     {
+        if (!ReviewersAreValid()) return;
         isBusy = true;
         error = notice = null;
         var name = categoryForm.Name.Trim();
-        var result = await PlanningApi.UpdateCategoryAsync(categoryId, new UpdateCategoryRequest(name, categoryForm.Description));
+        var result = await PlanningApi.UpdateCategoryAsync(categoryId,
+            new UpdateCategoryRequest(name, categoryForm.Description, categoryForm.ReviewerIds.ToArray()));
         if (result.IsSuccess)
         {
             CancelEdit();
@@ -451,10 +515,12 @@
     private async Task CreateCategoryAsync()
     {
         if (!Guid.TryParse(categoryForm.DepartmentId, out var departmentId)) return;
+        if (!ReviewersAreValid()) return;
         isBusy = true;
         error = notice = null;
         var result = await PlanningApi.CreateCategoryAsync(departmentId,
-            new CreateCategoryRequest(categoryForm.Name.Trim(), Description: categoryForm.Description));
+            new CreateCategoryRequest(categoryForm.Name.Trim(), Description: categoryForm.Description,
+                ReviewerIds: categoryForm.ReviewerIds.ToArray()));
         if (result.IsSuccess)
         {
             notice = $"Kategorien \"{categoryForm.Name.Trim()}\" er oprettet. Du kan nu oprette opgaver i den.";
@@ -483,6 +549,37 @@
         }
         else error = Errors(result);
         isBusy = false;
+    }
+
+    private string ReviewerNames(PlannableCategoryResponse category)
+    {
+        if (category.ReviewerIds is not { Count: > 0 } ids)
+            return "ingen valgt";
+        var department = departments.FirstOrDefault(item => item.Id == category.DepartmentId);
+        var people = department is null ? [] : department.Managers.Concat(department.Members).ToArray();
+        return string.Join(", ", ids.Select(id => people.FirstOrDefault(person => person.EmployeeId == id)?.Name ?? "Ukendt"));
+    }
+
+    private bool ReviewersAreValid()
+    {
+        reviewerError = categoryForm.ReviewerIds.Count == 0
+            ? "Vælg mindst én medarbejder, der skal godkende tid i kategorien."
+            : null;
+        return reviewerError is null;
+    }
+
+    private void ClearReviewers()
+    {
+        categoryForm.ReviewerIds.Clear();
+        reviewerToAdd = "";
+    }
+
+    private void AddReviewer()
+    {
+        if (Guid.TryParse(reviewerToAdd, out var employeeId))
+            categoryForm.ReviewerIds.Add(employeeId);
+        reviewerToAdd = "";
+        reviewerError = null;
     }
 
     private void ClearAssignees()
@@ -520,6 +617,7 @@
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Kategorien skal have et navn.")]
         public string Name { get; set; } = "";
         public string? Description { get; set; }
+        public HashSet<Guid> ReviewerIds { get; } = [];
     }
 
     private sealed class WorkItemForm

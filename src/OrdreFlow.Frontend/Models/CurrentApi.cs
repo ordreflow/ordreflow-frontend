@@ -83,9 +83,14 @@ public sealed record PlannableCategoryResponse(
     string DepartmentName,
     bool InternalOnly,
     string Status,
-    IReadOnlyList<WorkItemResponse> WorkItems);
+    IReadOnlyList<WorkItemResponse> WorkItems,
+    IReadOnlyList<Guid>? ReviewerIds = null);
 
-public sealed record CreateCategoryRequest(string Name, bool InternalOnly = false, string? Description = null);
+public sealed record CreateCategoryRequest(
+    string Name,
+    bool InternalOnly = false,
+    string? Description = null,
+    IReadOnlyList<Guid>? ReviewerIds = null);
 
 public sealed record CreateWorkItemRequest(
     string Name,
@@ -96,7 +101,7 @@ public sealed record CreateWorkItemRequest(
 
 public sealed record CreateWorkItemAssignmentRequest(Guid EmployeeId, decimal ExpectedHours, DateOnly ExpectedDeadline);
 
-public sealed record UpdateCategoryRequest(string Name, string? Description = null);
+public sealed record UpdateCategoryRequest(string Name, string? Description = null, IReadOnlyList<Guid>? ReviewerIds = null);
 
 public sealed record UpdateWorkItemRequest(
     string Name,
