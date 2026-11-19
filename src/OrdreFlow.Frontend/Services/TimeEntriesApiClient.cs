@@ -4,57 +4,38 @@ using OrdreFlow.Frontend.Models;
 
 namespace OrdreFlow.Frontend.Services;
 
-public class TimeEntriesApiClient(HttpClient httpClient) : ITimeEntriesApiClient
+public sealed class TimeEntriesApiClient(HttpClient httpClient) : ITimeEntriesApiClient
 {
     public Task<ApiResult<ViewTimeEntriesResponse>> GetEntriesAsync(
         DateOnly fromDate,
         DateOnly toDate,
-        CancellationToken cancellationToken = default)
-    {
-        var from = fromDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        var to = toDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        return ApiResponse.ReadAsync<ViewTimeEntriesResponse>(
-            () => httpClient.GetAsync($"api/time_entries?FromDate={from}&ToDate={to}", cancellationToken),
-            cancellationToken);
-    }
-
-    public Task<ApiResult<ViewTimeEntriesResponse>> GetManagerEntriesAsync(
-        DateOnly fromDate,
-        DateOnly toDate,
-        CancellationToken cancellationToken = default)
-    {
-        var from = fromDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        var to = toDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        return ApiResponse.ReadAsync<ViewTimeEntriesResponse>(
-            () => httpClient.GetAsync($"api/time_entries/manager?FromDate={from}&ToDate={to}", cancellationToken),
-            cancellationToken);
-    }
-
-    public Task<ApiResult<DownloadedFile>> ExportAcceptedAsync(
-        DateOnly fromDate,
-        DateOnly toDate,
-        Guid? employeeId = null,
-        CancellationToken cancellationToken = default)
-    {
-        var from = fromDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        var to = toDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        var employee = employeeId is Guid id ? $"&EmployeeId={id:D}" : "";
-        return ApiResponse.ReadFileAsync(
-            () => httpClient.GetAsync($"api/time_entries/export?FromDate={from}&ToDate={to}{employee}", cancellationToken),
-            $"time-entries-{fromDate:yyyyMMdd}-{toDate:yyyyMMdd}.csv",
-            cancellationToken);
-    }
-
-    public Task<ApiResult<bool>> ReviewAsync(
-        Guid id,
-        ReviewTimeEntryRequest request,
         CancellationToken cancellationToken = default) =>
-        ApiResponse.WriteAsync(
-            () => httpClient.PostAsJsonAsync($"api/time_entries/{id:D}/review", request, cancellationToken), cancellationToken);
+        ApiResponse.ReadAsync<ViewTimeEntriesResponse>(
+            () => httpClient.GetAsync($"api/time_entries?FromDate={Date(fromDate)}&ToDate={Date(toDate)}", cancellationToken),
+            cancellationToken);
+
+    public Task<ApiResult<ViewTimeEntriesResponse>> GetReviewerEntriesAsync(
+        DateOnly fromDate,
+        DateOnly toDate,
+        CancellationToken cancellationToken = default) =>
+        ApiResponse.ReadAsync<ViewTimeEntriesResponse>(
+            () => httpClient.GetAsync($"api/time_entries/reviewer?FromDate={Date(fromDate)}&ToDate={Date(toDate)}", cancellationToken),
+            cancellationToken);
 
     public Task<ApiResult<TimeEntryResponse>> GetAsync(Guid id, CancellationToken cancellationToken = default) =>
         ApiResponse.ReadAsync<TimeEntryResponse>(
             () => httpClient.GetAsync($"api/time_entries/{id:D}", cancellationToken), cancellationToken);
+
+    public Task<ApiResult<bool>> AcceptAsync(Guid id, CancellationToken cancellationToken = default) =>
+        ApiResponse.WriteAsync(
+            () => httpClient.PostAsync($"api/time_entries/{id:D}/accept", content: null, cancellationToken), cancellationToken);
+
+    public Task<ApiResult<bool>> ReturnAsync(
+        Guid id,
+        RejectTimeEntryRequest request,
+        CancellationToken cancellationToken = default) =>
+        ApiResponse.WriteAsync(
+            () => httpClient.PostAsJsonAsync($"api/time_entries/{id:D}/return", request, cancellationToken), cancellationToken);
 
     public Task<ApiResult<ViewTimeEntryReviewsResponse>> GetReviewsAsync(
         Guid timeEntryId,
@@ -78,4 +59,6 @@ public class TimeEntriesApiClient(HttpClient httpClient) : ITimeEntriesApiClient
     public Task<ApiResult<bool>> DeleteAsync(Guid id, CancellationToken cancellationToken = default) =>
         ApiResponse.WriteAsync(
             () => httpClient.DeleteAsync($"api/time_entries/{id:D}", cancellationToken), cancellationToken);
+
+    private static string Date(DateOnly date) => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 }

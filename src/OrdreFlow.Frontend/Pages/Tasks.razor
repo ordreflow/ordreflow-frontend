@@ -1,70 +1,52 @@
+@page "/work-items"
 @page "/tasks"
-@inject TasksApiClient TasksApiClient
-@inject OrdersApiClient OrdersApiClient
+@inject WorkItemsApiClient WorkItemsApi
 @inject AuthState AuthState
 @inject NavigationManager Navigation
 
-<PageTitle>OrdreFlow</PageTitle>
+<PageTitle>Arbejdsopgaver | OrdreFlow</PageTitle>
 
-<div class="tasks-header">
-    <div class="tasks-title">
-        <a class="of-back-btn" href="orders" aria-label="Tilbage til ordrer">
-            <span aria-hidden="true"><NavIcon Name="chevron-left" /></span>
-        </a>
+<section class="tasks-page">
+    <header class="tasks-header">
         <div>
-            <h1>Opgaver</h1>
-            @if (SelectedOrder is not null)
-            {
-                <p class="tasks-subtitle">@SelectedOrder.Name</p>
-            }
+            <p class="eyebrow">Arbejdsplan</p>
+            <h1>Arbejdsopgaver</h1>
+            <p class="muted">Arbejde, du har adgang til at registrere tid på.</p>
         </div>
-    </div>
-    @if (AuthState.IsManagerOrAdmin)
+        @if (AuthState.CanPlanWork)
+        {
+            <a class="btn btn-primary" href="/work-planning">Planlæg arbejde</a>
+        }
+    </header>
+
+    <label for="work-search">Søg arbejde</label>
+    <input id="work-search" class="form-control mb-3" type="search" @bind="search" @bind:event="oninput" />
+    @if (isLoading)
     {
-        <a class="btn btn-primary new-task-btn" href="@NewTaskUrl">+ Ny opgave</a>
+        <p role="status">Henter arbejdsopgaver...</p>
     }
-</div>
-
-@if (isLoading)
-{
-    <p class="of-muted">Henter opgaver...</p>
-}
-else if (loadError is not null)
-{
-    <p class="validation-message" role="alert">@loadError</p>
-    <button type="button" class="btn btn-outline-primary" @onclick="LoadAsync">Prøv igen</button>
-}
-else
-{
-    <div class="tasks-filter">
-        <label for="order-filter">Sag</label>
-        <select id="order-filter" class="form-select" @bind="orderFilter">
-            <option value="">Alle sager</option>
-            @foreach (var order in orders.OrderBy(order => order.Name))
-            {
-                <option value="@order.Id">@order.Name</option>
-            }
-        </select>
-    </div>
-
-    @if (FilteredTasks.Count == 0)
+    else if (error is not null)
     {
-        <p class="of-muted">@(tasks.Count == 0 ? "Der er ingen opgaver endnu." : "Der er ingen opgaver på denne sag.")</p>
+        <p class="alert alert-danger" role="alert">@error</p>
+        <button class="btn btn-outline-primary" @onclick="LoadAsync">Prøv igen</button>
+    }
+    else if (workItems.Count == 0)
+    {
+        <p class="empty-state">Der er ikke noget arbejde tilgængeligt.</p>
     }
     else
     {
-        <p class="tasks-count">@FilteredTasks.Count @(FilteredTasks.Count == 1 ? "opgave" : "opgaver")</p>
-
         <ul class="task-list">
-            @foreach (var task in FilteredTasks)
+            @foreach (var work in FilteredWork)
             {
-                <li>
-                    <button type="button" class="task-card" @onclick="() => OpenTask(task.Id)">
-                        <span class="task-order">@OrderName(task.OrderId)</span>
-                        <span class="task-title">@task.Title</span>
-                        @if (!string.IsNullOrWhiteSpace(task.Description))
+                <li @key="work.Id">
+                    <button class="task-card" type="button" @onclick="() => OpenWorkItem(work.Id)">
+                        <span class="task-order">@work.DepartmentName · @work.CategoryName</span>
+                        <strong class="task-title">@work.Name</strong>
+                        <span class="task-description">@work.Kind@(work.AssignedToMe ? " · Tildelt dig" : "")</span>
+                        @if (!string.IsNullOrWhiteSpace(work.Description))
                         {
-                            <span class="task-description">@task.Description</span>
+                            <span class="task-description">@work.Description</span>
                         }
                         <span class="task-chevron" aria-hidden="true"><NavIcon Name="chevron-right" /></span>
                     </button>
@@ -72,64 +54,36 @@ else
             }
         </ul>
     }
-}
+</section>
 
 @code {
-    // Set by "Gå til opgaver" on the orders page, so the list opens on that order's tasks.
-    [SupplyParameterFromQuery]
-    public Guid? OrderId { get; set; }
-
-    private IReadOnlyList<TaskResponse> tasks = [];
-    private IReadOnlyList<OrderResponse> orders = [];
-    private string orderFilter = "";
+    private IReadOnlyList<AccessibleWorkResponse> workItems = [];
+    private string search = "";
     private bool isLoading = true;
-    private string? loadError;
+    private string? error;
 
-    private OrderResponse? SelectedOrder =>
-        orders.FirstOrDefault(order => order.Id.ToString() == orderFilter);
+    private IEnumerable<AccessibleWorkResponse> FilteredWork =>
+        workItems.Where(item =>
+            item.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+            item.CategoryName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+            item.DepartmentName.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(item => item.DepartmentName)
+            .ThenBy(item => item.CategoryName)
+            .ThenBy(item => item.Name);
 
-    // A new task is created on the order currently shown, if any.
-    private string NewTaskUrl => orderFilter == "" ? "tasks/new" : $"tasks/new?orderId={orderFilter}";
+    protected override Task OnInitializedAsync() => LoadAsync();
 
-    private IReadOnlyList<TaskResponse> FilteredTasks =>
-        tasks
-            .Where(task => orderFilter == "" || task.OrderId.ToString() == orderFilter)
-            .OrderBy(task => OrderName(task.OrderId))
-            .ThenBy(task => task.Title)
-            .ToArray();
-
-    protected override Task OnParametersSetAsync()
-    {
-        orderFilter = OrderId?.ToString() ?? "";
-        return LoadAsync();
-    }
+    private void OpenWorkItem(Guid id) => Navigation.NavigateTo($"/work-items/{id:D}");
 
     private async Task LoadAsync()
     {
         isLoading = true;
-        loadError = null;
-
-        var tasksRequest = TasksApiClient.GetTasksAsync();
-        var ordersRequest = OrdersApiClient.GetOrdersAsync();
-        var taskResult = await tasksRequest;
-        var orderResult = await ordersRequest;
-
-        if (!taskResult.IsSuccess)
-        {
-            loadError = string.Join(" ", taskResult.Errors.Select(error => error.Message));
-        }
+        error = null;
+        var result = await WorkItemsApi.GetAccessibleAsync();
+        if (result.IsSuccess)
+            workItems = result.Value!.Items;
         else
-        {
-            tasks = taskResult.Value!.Items.ToArray();
-            // Order names are only for display; the list still works if they can't be loaded.
-            orders = orderResult.IsSuccess ? orderResult.Value!.Items.ToArray() : [];
-        }
-
+            error = string.Join(" ", result.Errors.Select(item => item.Message));
         isLoading = false;
     }
-
-    private string OrderName(Guid orderId) =>
-        orders.FirstOrDefault(order => order.Id == orderId)?.Name ?? "Ukendt sag";
-
-    private void OpenTask(Guid id) => Navigation.NavigateTo($"tasks/{id:D}");
 }

@@ -1,400 +1,207 @@
 @page "/register-time"
 @page "/register-time/{EntryId:guid}"
-@using System.Globalization
-@inject OrdersApiClient OrdersApiClient
-@inject TasksApiClient TasksApiClient
-@inject ITimeEntriesApiClient TimeEntriesApiClient
+@inject WorkItemsApiClient WorkItemsApi
+@inject ITimeEntriesApiClient TimeEntriesApi
 @inject NavigationManager Navigation
 
-<PageTitle>OrdreFlow</PageTitle>
+<PageTitle>@(IsEdit ? "Rediger registrering" : "Registrer tid") | OrdreFlow</PageTitle>
 
 <div class="register-card">
     <div class="register-header">
-        <a class="back-btn" href="" aria-label="Tilbage til forsiden">
+        <a class="back-btn" href="/" aria-label="Tilbage til forsiden">
             <span aria-hidden="true"><NavIcon Name="chevron-left" /></span>
         </a>
         <h1>@(IsEdit ? "Rediger registrering" : "Registrer tid")</h1>
     </div>
-
     @if (isLoading)
     {
-        <p class="register-message">Henter oplysninger...</p>
+        <p role="status">Henter oplysninger...</p>
     }
     else if (loadError is not null)
     {
         <p class="validation-message" role="alert">@loadError</p>
-        <button type="button" class="btn btn-outline-primary" @onclick="LoadAsync">Prøv igen</button>
+        <button class="btn btn-outline-primary" @onclick="LoadAsync">Prøv igen</button>
     }
     else
     {
-        <EditForm Model="formModel" OnValidSubmit="Submit">
+        <EditForm Model="form" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
-
             @if (IsEdit)
             {
-                <div class="selected-task">
-                    <span class="selected-task-title">@existingTask?.Title</span>
-                    <span class="selected-task-order">@SelectedOrder?.Name</span>
+                <div class="selected-task mb-3">
+                    <strong>@(selectedWork?.Name ?? "Arbejdsopgave")</strong>
+                    @if (selectedWork is not null)
+                    {
+                        <span class="d-block">@selectedWork.DepartmentName · @selectedWork.CategoryName</span>
+                    }
+                    else
+                    {
+                        <span class="d-block">Arbejdsopgavens detaljer er ikke længere tilgængelige.</span>
+                    }
                 </div>
             }
             else
             {
-                @* Most registrations repeat recent work, so those come first: one tap picks order and task. *@
-                @if (recentTasks.Count > 0)
-                {
-                    <section class="form-section" aria-labelledby="recent-title">
-                        <h2 id="recent-title" class="section-title">Seneste opgaver</h2>
-                        <div class="recent-grid">
-                            @foreach (var recent in recentTasks)
-                            {
-                                var isSelected = formModel.TaskId == recent.TaskId;
-
-                                <button type="button" class="recent-btn @(isSelected ? "selected" : "")"
-                                        aria-pressed="@(isSelected ? "true" : "false")"
-                                        @onclick="() => SelectRecentAsync(recent)">
-                                    <span class="recent-task">@recent.TaskTitle</span>
-                                    <span class="recent-order">@recent.OrderName</span>
-                                </button>
-                            }
-                        </div>
-                    </section>
-                }
-
-                @if (recentTasks.Count > 0 && !showManualPick)
-                {
-                    <button type="button" class="manual-toggle" @onclick="() => showManualPick = true">
-                        @(IsRecentSelected || formModel.TaskId is null ? "Vælg en anden sag eller opgave" : $"Valgt: {SelectedTaskTitle}")
-                        <span aria-hidden="true"><NavIcon Name="chevron-right" /></span>
-                    </button>
-                }
-                else
-                {
-                <section class="form-section" aria-labelledby="pick-title">
-                    <h2 id="pick-title" class="section-title">
-                        @(recentTasks.Count > 0 ? "Vælg sag og opgave" : "Sag og opgave")
-                    </h2>
-
-                    <div class="form-field">
-                        <label for="order">Sag</label>
-                        <InputSelect id="order" class="form-select form-select-lg"
-                                     @bind-Value="formModel.OrderId" @bind-Value:after="OnOrderChanged">
-                            <option value="">Vælg sag</option>
-                            @foreach (var order in OpenOrders)
-                            {
-                                <option value="@order.Id">@order.Name</option>
-                            }
-                        </InputSelect>
-                        <ValidationMessage For="() => formModel.OrderId" />
-                        @if (OpenOrders.Count == 0)
+                <div class="form-field">
+                    <label for="work-item">Arbejdsopgave</label>
+                    <InputSelect id="work-item" class="form-select form-select-lg" @bind-Value="form.WorkItemId">
+                        <option value="">Vælg arbejde</option>
+                        @foreach (var work in workItems)
                         {
-                            <p class="register-message">Der er ingen sager tilgængelige.</p>
+                            <option value="@work.Id">@work.DepartmentName · @work.CategoryName · @work.Name</option>
                         }
-                    </div>
-
-                    <div class="form-field">
-                        <label for="task">Opgave</label>
-                        <InputSelect id="task" class="form-select form-select-lg"
-                                     disabled="@(formModel.OrderId is null || isLoadingTasks || tasksError is not null)"
-                                     @bind-Value="formModel.TaskId">
-                            <option value="">@(isLoadingTasks ? "Henter opgaver..." : "Vælg opgave")</option>
-                            @foreach (var task in tasks)
-                            {
-                                <option value="@task.Id">@task.Title</option>
-                            }
-                        </InputSelect>
-                        <ValidationMessage For="() => formModel.TaskId" />
-                        @if (tasksError is not null)
-                        {
-                            <p class="validation-message" role="alert">@tasksError</p>
-                            <button type="button" class="btn btn-outline-primary" @onclick="OnOrderChanged">Prøv igen</button>
-                        }
-                        else if (formModel.OrderId is not null && !isLoadingTasks && tasks.Count == 0)
-                        {
-                            <p class="register-message">Der er ingen åbne opgaver på denne sag.</p>
-                        }
-                    </div>
-                </section>
-                }
+                    </InputSelect>
+                    <ValidationMessage For="() => form.WorkItemId" />
+                    @if (workItems.Count == 0)
+                    {
+                        <p class="register-message">Der er ikke noget arbejde, du kan registrere tid på.</p>
+                    }
+                </div>
             }
 
-            @* Hours first: the date already defaults to today, which is the most common case. *@
-            <section class="form-section" aria-labelledby="hours-title">
-                <h2 id="hours-title" class="section-title">Timer</h2>
-                <div class="chip-row hours">
-                    @foreach (var preset in HourPresets)
+            <div class="form-section">
+                <label for="hours" class="section-title">Timer</label>
+                <InputNumber id="hours" class="form-control" step="0.25" min="0.25" max="24" @bind-Value="form.Hours" />
+                <ValidationMessage For="() => form.Hours" />
+                <div class="chip-row hours mt-2" aria-label="Vælg antal timer">
+                    @foreach (var shortcut in HourShortcuts)
                     {
-                        var isSelected = formModel.Hours == preset;
-
-                        <button type="button" class="chip @(isSelected ? "selected" : "")"
-                                aria-pressed="@(isSelected ? "true" : "false")"
-                                aria-label="@($"{FormatHours(preset)} timer")"
-                                @onclick="() => formModel.Hours = preset">
-                            @(preset == 0.5m ? "½" : FormatHours(preset))
-                        </button>
+                        <button type="button" class="chip @(form.Hours == shortcut.Value ? "selected" : null)"
+                                @onclick="() => form.Hours = shortcut.Value">@shortcut.Label</button>
                     }
-                    <InputNumber id="hours" class="form-control hours-input" step="0.25" inputmode="decimal"
-                                 placeholder="Andet antal timer" aria-label="Antal timer" @bind-Value="formModel.Hours" />
                 </div>
-                <ValidationMessage For="() => formModel.Hours" />
-            </section>
-
-            <section class="form-section" aria-labelledby="date-title">
-                <h2 id="date-title" class="section-title">Dato</h2>
-                <div class="chip-row">
-                    <button type="button" class="chip @(formModel.Date.Date == Today ? "selected" : "")"
-                            aria-pressed="@(formModel.Date.Date == Today ? "true" : "false")"
-                            @onclick="() => formModel.Date = Today">I dag</button>
-                    <button type="button" class="chip @(formModel.Date.Date == Today.AddDays(-1) ? "selected" : "")"
-                            aria-pressed="@(formModel.Date.Date == Today.AddDays(-1) ? "true" : "false")"
-                            @onclick="() => formModel.Date = Today.AddDays(-1)">I går</button>
-                    <InputDate id="date" class="form-control date-input" aria-label="Vælg en anden dato"
-                               @bind-Value="formModel.Date" />
+            </div>
+            <div class="form-section">
+                <label for="date" class="section-title">Dato</label>
+                <InputDate id="date" class="form-control" @bind-Value="form.Date" />
+                <ValidationMessage For="() => form.Date" />
+                <div class="chip-row mt-2" aria-label="Vælg dato">
+                    <button type="button" class="chip @(form.Date.Date == DateTime.Today ? "selected" : null)"
+                            @onclick="() => form.Date = DateTime.Today">I dag</button>
+                    <button type="button" class="chip @(form.Date.Date == DateTime.Today.AddDays(-1) ? "selected" : null)"
+                            @onclick="() => form.Date = DateTime.Today.AddDays(-1)">I går</button>
                 </div>
-                <ValidationMessage For="() => formModel.Date" />
-            </section>
-
-            <section class="form-section">
-                <label for="comment" class="section-title">Kommentar <span class="optional">(valgfri)</span></label>
-                <InputTextArea id="comment" class="form-control" rows="2" @bind-Value="formModel.Comment" />
-                <ValidationMessage For="() => formModel.Comment" />
-            </section>
-
-            @* Appendices are not part of this milestone (M2); the controls are shown but disabled. *@
+            </div>
+            <div class="form-section">
+                <label for="comment" class="section-title">Kommentar (valgfri)</label>
+                <InputTextArea id="comment" class="form-control" rows="3" @bind-Value="form.Comment" />
+                <ValidationMessage For="() => form.Comment" />
+            </div>
             <fieldset class="appendices" disabled>
-                <legend>Bilag</legend>
-                <button type="button" class="btn btn-outline-secondary w-100">+ Tilføj bilag</button>
-                <p class="appendices-hint">Bilag kommer i en senere version.</p>
+                <legend>Vedhæftning</legend>
+                <input type="file" aria-label="Vedhæft fil" />
+                <span>Vedhæftning er ikke tilgængelig endnu.</span>
             </fieldset>
-
             @if (submitError is not null)
             {
                 <p class="validation-message" role="alert">@submitError</p>
             }
-
-            <div class="submit-bar">
-                <button type="submit" class="btn btn-primary submit-btn"
-                        disabled="@(isSubmitting || isLoadingTasks || tasksError is not null || (!IsEdit && OpenOrders.Count == 0))">
-                    @(isSubmitting ? "Gemmer..." : IsEdit ? "Gem ændringer" : SubmitLabel)
-                </button>
-            </div>
+            <button type="submit" class="btn btn-primary" disabled="@(isSubmitting || (!IsEdit && workItems.Count == 0))">
+                @(isSubmitting ? "Gemmer..." : IsEdit ? "Gem ændringer" : "Registrer tid")
+            </button>
         </EditForm>
     }
 </div>
 
 @code {
-    [Parameter]
-    public Guid? EntryId { get; set; }
+    [Parameter] public Guid? EntryId { get; set; }
 
-    [SupplyParameterFromQuery]
+    [SupplyParameterFromQuery(Name = "date")]
     public DateTime? Date { get; set; }
 
-    private static readonly decimal[] HourPresets = [0.5m, 1m, 2m, 4m, 7.5m];
+    private static readonly (decimal Value, string Label)[] HourShortcuts =
+    [
+        (0.5m, "½"),
+        (1m, "1"),
+        (2m, "2"),
+        (4m, "4"),
+        (7.5m, "7,5")
+    ];
 
-    // How far back "Seneste opgaver" looks, and how many it shows.
-    private const int RecentDays = 60;
-    private const int RecentCount = 4;
-
-    private sealed record RecentTask(Guid TaskId, Guid OrderId, string TaskTitle, string OrderName);
-
-    private TimeRegistrationFormModel formModel = new();
-    private IReadOnlyList<OrderResponse>? orders;
-    private IReadOnlyList<TaskResponse> tasks = [];
-    private IReadOnlyList<RecentTask> recentTasks = [];
-    private TaskResponse? existingTask;
+    private TimeEntryForm form = new();
+    private IReadOnlyList<AccessibleWorkResponse> workItems = [];
+    private AccessibleWorkResponse? selectedWork;
+    private Guid? currentTaskId;
     private bool isLoading = true;
-    private bool showManualPick;
-    private bool isLoadingTasks;
     private bool isSubmitting;
     private string? loadError;
-    private string? tasksError;
     private string? submitError;
 
     private bool IsEdit => EntryId is not null;
-    private static DateTime Today => DateTime.Today;
-    private OrderResponse? SelectedOrder => orders?.FirstOrDefault(order => order.Id == formModel.OrderId);
-
-    private bool IsRecentSelected => recentTasks.Any(recent => recent.TaskId == formModel.TaskId);
-
-    private string? SelectedTaskTitle => tasks.FirstOrDefault(task => task.Id == formModel.TaskId)?.Title;
-
-    private IReadOnlyList<OrderResponse> OpenOrders =>
-        orders?.Where(order => string.Equals(order.Status, "Open", StringComparison.OrdinalIgnoreCase)).ToArray() ?? [];
-
-    // Shows what will be saved, so the user can confirm with one look before tapping.
-    private string SubmitLabel => formModel.Hours is decimal hours && hours > 0
-        ? $"Registrer {FormatHours(hours)} {(hours == 1 ? "time" : "timer")}"
-        : "Registrer tid";
 
     protected override Task OnParametersSetAsync() => LoadAsync();
 
     private async Task LoadAsync()
     {
         isLoading = true;
-        loadError = null;
-        tasksError = null;
-        submitError = null;
-        isLoadingTasks = false;
-        showManualPick = false;
-        existingTask = null;
-        tasks = [];
-        recentTasks = [];
-        orders = null;
-        formModel = new TimeRegistrationFormModel();
+        loadError = submitError = null;
+        selectedWork = null;
+        currentTaskId = null;
+        form = new TimeEntryForm { Date = Date?.Date ?? DateTime.Today };
 
-        var orderResult = await OrdersApiClient.GetOrdersAsync();
-        if (!orderResult.IsSuccess)
+        if (IsEdit)
         {
-            loadError = string.Join(" ", orderResult.Errors.Select(error => error.Message));
-            isLoading = false;
-            return;
-        }
-
-        orders = orderResult.Value!.Items.ToArray();
-
-        if (EntryId is Guid entryId)
-        {
-            var entryResult = await TimeEntriesApiClient.GetAsync(entryId);
+            var entryResult = await TimeEntriesApi.GetAsync(EntryId!.Value);
             if (!entryResult.IsSuccess)
             {
-                loadError = string.Join(" ", entryResult.Errors.Select(error => error.Message));
+                loadError = Errors(entryResult);
                 isLoading = false;
                 return;
             }
 
             var entry = entryResult.Value!;
-            var taskResult = await TasksApiClient.GetTaskAsync(entry.TaskId);
-            if (!taskResult.IsSuccess)
+            currentTaskId = entry.TaskId;
+            form = new TimeEntryForm
             {
-                loadError = string.Join(" ", taskResult.Errors.Select(error => error.Message));
-                isLoading = false;
-                return;
-            }
-
-            existingTask = taskResult.Value!;
-            formModel.OrderId = existingTask.OrderId;
-            formModel.TaskId = existingTask.Id;
-            formModel.Date = entry.Date;
-            formModel.Hours = entry.Hours;
-            formModel.Comment = entry.Comment;
+                WorkItemId = entry.TaskId,
+                Date = entry.Date,
+                Hours = entry.Hours,
+                Comment = entry.Comment
+            };
+            var workResult = await WorkItemsApi.GetAsync(entry.TaskId);
+            if (workResult.IsSuccess)
+                selectedWork = workResult.Value;
         }
         else
         {
-            formModel.Date = Date?.Date ?? Today;
-            await LoadRecentTasksAsync();
+            var result = await WorkItemsApi.GetAccessibleAsync();
+            if (result.IsSuccess)
+                workItems = result.Value!.Items;
+            else
+                loadError = Errors(result);
         }
-
         isLoading = false;
     }
 
-    // Recent tasks are a shortcut only; if they can't be loaded the form still works without them.
-    private async Task LoadRecentTasksAsync()
+    private async Task SaveAsync()
     {
-        var entriesRequest = TimeEntriesApiClient.GetEntriesAsync(
-            DateOnly.FromDateTime(Today.AddDays(-RecentDays)), DateOnly.FromDateTime(Today));
-        var tasksRequest = TasksApiClient.GetTasksAsync();
-        var entriesResult = await entriesRequest;
-        var tasksResult = await tasksRequest;
-        if (!entriesResult.IsSuccess || !tasksResult.IsSuccess)
-        {
-            return;
-        }
-
-        var openTasks = tasksResult.Value!.Items.Where(task => task.IsOpen).ToDictionary(task => task.Id);
-        var openOrders = OpenOrders.ToDictionary(order => order.Id);
-
-        recentTasks = entriesResult.Value!.Items
-            .OrderByDescending(entry => entry.Date)
-            .Select(entry => entry.TaskId)
-            .Distinct()
-            .Where(taskId => openTasks.TryGetValue(taskId, out var task) && openOrders.ContainsKey(task.OrderId))
-            .Take(RecentCount)
-            .Select(taskId => openTasks[taskId])
-            .Select(task => new RecentTask(task.Id, task.OrderId, task.Title, openOrders[task.OrderId].Name))
-            .ToArray();
-    }
-
-    private async Task SelectRecentAsync(RecentTask recent)
-    {
-        submitError = null;
-        if (formModel.OrderId != recent.OrderId || tasks.Count == 0)
-        {
-            formModel.OrderId = recent.OrderId;
-            await LoadTasksAsync(recent.OrderId);
-        }
-
-        formModel.TaskId = recent.TaskId;
-    }
-
-    private async Task OnOrderChanged()
-    {
-        formModel.TaskId = null;
-        if (formModel.OrderId is Guid orderId)
-        {
-            await LoadTasksAsync(orderId);
-        }
-        else
-        {
-            tasks = [];
-            tasksError = null;
-            isLoadingTasks = false;
-        }
-    }
-
-    private async Task LoadTasksAsync(Guid orderId)
-    {
-        tasks = [];
-        tasksError = null;
-        isLoadingTasks = true;
-        var result = await TasksApiClient.GetTasksAsync(orderId);
-        if (formModel.OrderId != orderId)
-        {
-            return;
-        }
-
-        if (result.IsSuccess)
-        {
-            tasks = result.Value!.Items.Where(task => task.IsOpen).ToArray();
-        }
-        else
-        {
-            tasksError = string.Join(" ", result.Errors.Select(error => error.Message));
-        }
-
-        isLoadingTasks = false;
-    }
-
-    private async Task Submit()
-    {
-        if (formModel.Hours is null || formModel.TaskId is not Guid taskId)
-        {
-            return;
-        }
-
+        var taskId = IsEdit ? currentTaskId : form.WorkItemId;
+        if (taskId is not Guid id || form.Hours is not decimal hours) return;
         isSubmitting = true;
         submitError = null;
-
-        // Send a plain calendar date. DateTime.Today is local time in the browser, which would be serialized
-        // with the Danish offset (+01:00) and stored by the UTC backend as the previous day.
-        var date = DateTime.SpecifyKind(formModel.Date.Date, DateTimeKind.Unspecified);
-
-        var result = EntryId is Guid entryId
-            ? await TimeEntriesApiClient.UpdateAsync(entryId,
-                new UpdateTimeEntryRequest(date, formModel.Hours.Value, formModel.Comment))
-            : await TimeEntriesApiClient.CreateAsync(
-                new CreateTimeEntryRequest(taskId, date, formModel.Hours.Value, formModel.Comment));
-
-        isSubmitting = false;
-
+        // DateTime.Today is local browser time and would be sent with a UTC offset, which the
+        // server converts to the previous day. Send a plain calendar date instead.
+        var date = DateTime.SpecifyKind(form.Date.Date, DateTimeKind.Unspecified);
+        var result = IsEdit
+            ? await TimeEntriesApi.UpdateAsync(EntryId!.Value, new UpdateTimeEntryRequest(date, hours, form.Comment))
+            : await TimeEntriesApi.CreateAsync(new CreateTimeEntryRequest(id, date, hours, form.Comment));
         if (result.IsSuccess)
-        {
-            Navigation.NavigateTo($"/?date={formModel.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}");
-        }
+            Navigation.NavigateTo($"/?date={date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)}");
         else
-        {
-            submitError = string.Join(" ", result.Errors.Select(error => error.Message));
-        }
+            submitError = Errors(result);
+        isSubmitting = false;
     }
 
-    private static string FormatHours(decimal hours) =>
-        hours.ToString("0.##", CultureInfo.InvariantCulture).Replace('.', ',');
+    private static string Errors<T>(ApiResult<T> result) => string.Join(" ", result.Errors.Select(item => item.Message));
+
+    private sealed class TimeEntryForm
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Vælg en arbejdsopgave.")]
+        public Guid? WorkItemId { get; set; }
+        [System.ComponentModel.DataAnnotations.Range(0.25, 24, ErrorMessage = "Timer skal være mellem 0,25 og 24.")]
+        public decimal? Hours { get; set; } = 1m;
+        public DateTime Date { get; set; } = DateTime.Today;
+        [System.ComponentModel.DataAnnotations.MaxLength(500)]
+        public string? Comment { get; set; }
+    }
 }

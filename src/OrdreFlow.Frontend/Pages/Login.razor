@@ -1,7 +1,7 @@
 @page "/login"
 @layout LoginLayout
 @inject AuthApiClient AuthApiClient
-@inject UsersApiClient UsersApiClient
+@inject EmployeesApiClient EmployeesApiClient
 @inject AuthState AuthState
 @inject NavigationManager Navigation
 
@@ -82,7 +82,7 @@
         // The token has to be in place before the profile call, so the API sees who is asking.
         await AuthState.SignInAsync(login.Value!);
 
-        var me = await UsersApiClient.GetMeAsync();
+        var me = await EmployeesApiClient.GetMeAsync();
         if (!me.IsSuccess)
         {
             await AuthState.SignOutAsync();

@@ -15,3 +15,289 @@
     font-weight: 600;
     border-radius: var(--of-radius);
 }
+
+.field-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+}
+
+/* Opgave / Kategori switch */
+
+.mode-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    margin-bottom: 1.25rem;
+    border-radius: 0.8rem;
+    background: var(--of-neutral-soft);
+}
+
+.mode-btn {
+    min-height: 2.75rem;
+    border: none;
+    border-radius: 0.6rem;
+    background: transparent;
+    color: var(--of-muted);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+    .mode-btn.selected {
+        background: var(--of-surface);
+        color: var(--of-text);
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+    }
+
+/* Type chips */
+
+.kind-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+}
+
+.kind-btn {
+    min-height: 3rem;
+    border: 1px solid var(--of-border);
+    border-radius: 0.6rem;
+    background: var(--of-surface-alt);
+    color: var(--of-text);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+
+    .kind-btn:hover {
+        border-color: var(--of-primary);
+    }
+
+    .kind-btn.selected {
+        border-color: transparent;
+        background: var(--of-gradient);
+        color: #fff;
+        box-shadow: var(--of-glow);
+    }
+
+/* Visibility and assignment */
+
+.visibility-toggle {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid var(--of-border);
+    border-radius: 0.75rem;
+    cursor: pointer;
+}
+
+    .visibility-toggle ::deep .form-check-input {
+        flex-shrink: 0;
+        width: 1.25rem;
+        height: 1.25rem;
+        margin-top: 0.1rem;
+    }
+
+.assignment-panel {
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid var(--of-primary-soft);
+    border-radius: 0.75rem;
+    background: var(--of-surface-alt);
+}
+
+    .assignment-panel label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.35rem;
+    }
+
+.assignee-picker {
+    display: flex;
+    gap: 0.5rem;
+}
+
+    .assignee-picker .form-select {
+        flex: 1 1 auto;
+        min-height: 2.75rem;
+    }
+
+.assignee-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.75rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+    .assignee-chips li {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.3rem 0.4rem 0.3rem 0.75rem;
+        border-radius: 2rem;
+        background: var(--of-primary-soft);
+        color: var(--of-primary-dark);
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .assignee-chips button {
+        width: 1.6rem;
+        height: 1.6rem;
+        border: none;
+        border-radius: 50%;
+        background: transparent;
+        color: inherit;
+        font-size: 1.1rem;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+        .assignee-chips button:hover {
+            background: rgba(99, 102, 241, 0.15);
+        }
+
+.assignment-plan {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+/* Category overview */
+
+.category-overview h2 {
+    margin: 0 0 0.25rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.category-card {
+    cursor: default;
+    padding: 0;
+    overflow: hidden;
+}
+
+.category-edit-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    position: relative;
+    width: 100%;
+    padding: 0.9rem 1.25rem;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+    .category-edit-btn:hover {
+        background: var(--of-primary-soft);
+    }
+
+.edit-hint {
+    position: absolute;
+    top: 0.9rem;
+    right: 1.25rem;
+    color: var(--of-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.category-edit-btn:hover .edit-hint,
+.category-edit-btn:focus-visible .edit-hint {
+    opacity: 1;
+}
+
+.category-items {
+    width: 100%;
+    margin: 0;
+    padding: 0.35rem 0.6rem 0.6rem;
+    border-top: 1px solid var(--of-border);
+    list-style: none;
+    font-size: 0.92rem;
+}
+
+.work-item-btn {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    min-height: 2.5rem;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid transparent;
+    border-radius: 0.6rem;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+    .work-item-btn:hover {
+        background: var(--of-surface-alt);
+        border-color: var(--of-border);
+    }
+
+    .work-item-btn.selected {
+        background: var(--of-primary-soft);
+        border-color: var(--of-primary);
+    }
+
+.work-item-name {
+    font-weight: 500;
+}
+
+.assignee-count {
+    margin-left: auto;
+    color: var(--of-muted);
+    font-size: 0.8rem;
+}
+
+.edit-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.7rem 1rem;
+    margin-bottom: 1.25rem;
+    border-radius: 0.75rem;
+    background: var(--of-accent-soft);
+    color: #0e7490;
+    font-weight: 600;
+}
+
+.kind-tag {
+    padding: 0.1rem 0.5rem;
+    border-radius: 2rem;
+    background: var(--of-neutral-soft);
+    color: var(--of-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+    .kind-tag.private {
+        background: var(--of-accent-soft);
+        color: #0e7490;
+    }
+
+@media (max-width: 520px) {
+    .assignment-plan {
+        grid-template-columns: 1fr;
+    }
+}

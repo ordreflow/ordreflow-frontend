@@ -1,178 +1,123 @@
 @page "/time-entries"
 @using System.Globalization
-@inject ITimeEntriesApiClient TimeEntriesApiClient
-@inject OrdersApiClient OrdersApiClient
-@inject TasksApiClient TasksApiClient
+@inject ITimeEntriesApiClient TimeEntriesApi
+@inject WorkItemsApiClient WorkItemsApi
 
-<PageTitle>OrdreFlow</PageTitle>
+<PageTitle>Mine registreringer | OrdreFlow</PageTitle>
 
-<div class="time-entries">
-    <h1>Tidsregistreringer</h1>
-
+<section class="time-entries">
+    <h1>Mine registreringer</h1>
     <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
-        <button type="button" class="btn btn-outline-primary" @onclick="() => ChangeWeek(-1)" aria-label="Forrige uge"><NavIcon Name="chevron-left" /></button>
-        <span>Uge @ISOWeek.GetWeekOfYear(weekStart) (@weekStart.ToString("d/M") &ndash; @weekStart.AddDays(6).ToString("d/M"))</span>
-        <button type="button" class="btn btn-outline-primary" @onclick="() => ChangeWeek(1)" aria-label="Næste uge"><NavIcon Name="chevron-right" /></button>
+        <button type="button" class="btn btn-outline-primary" @onclick="() => ChangeWeek(-1)" aria-label="Forrige uge">‹</button>
+        <span>Uge @ISOWeek.GetWeekOfYear(weekStart) (@weekStart.ToString("d/M") – @weekStart.AddDays(6).ToString("d/M"))</span>
+        <button type="button" class="btn btn-outline-primary" @onclick="() => ChangeWeek(1)" aria-label="Næste uge">›</button>
     </div>
 
     @if (catalogError is not null)
     {
-        <p class="validation-message" role="alert">@catalogError</p>
-        <button type="button" class="btn btn-outline-primary mb-3" @onclick="LoadCatalogAsync">Prøv igen</button>
+        <p class="alert alert-warning" role="alert">Arbejdsopgavenavne kunne ikke hentes: @catalogError</p>
     }
-
     @if (isLoading)
     {
         <p role="status">Henter tidsregistreringer...</p>
     }
-    else if (loadError is not null)
+    else if (error is not null)
     {
-        <p class="validation-message" role="alert">@loadError</p>
-        <button type="button" class="btn btn-outline-primary" @onclick="LoadWeekAsync">Prøv igen</button>
+        <p class="validation-message" role="alert">@error</p>
+        <button class="btn btn-outline-primary" @onclick="LoadWeekAsync">Prøv igen</button>
     }
     else if (entries.Count == 0)
     {
-        <p>Ingen tidsregistreringer denne uge. <a href="register-time">Registrer tid</a>.</p>
+        <p>Ingen tidsregistreringer denne uge. <a href="/register-time">Registrer tid</a>.</p>
     }
     else
     {
         <p class="weekly-total">
-            Ugens total: <strong>@FormatHours(entries.Sum(entry => entry.Hours)) timer</strong>
+            Ugens total: <strong>@FormatHours(entries.Sum(item => item.Hours)) timer</strong>
         </p>
-
         <ul class="order-list">
             @foreach (var entry in entries.OrderByDescending(item => item.Date))
             {
-                var reviewState = reviewStates[entry.Id];
-
                 <li class="order-card entry-card" @key="entry.Id">
-                    <span class="order-card-name">@TaskName(entry.TaskId) (@OrderName(entry.TaskId))</span>
-                    <span class="order-card-customer">@entry.Date.ToString("d/M") &middot; @FormatHours(entry.Hours) timer</span>
+                    <strong class="order-card-name">@WorkName(entry.TaskId)</strong>
+                    <span class="order-card-customer">@entry.Date.ToString("d/M") · @FormatHours(entry.Hours) timer</span>
                     <span class="entry-status">Status: @StatusLabel(entry.Status)</span>
+                    @if (entry.Status == "Rejected" && !string.IsNullOrWhiteSpace(entry.RejectionReason))
+                    {
+                        <p class="alert alert-warning mt-2">Begrundelse: @entry.RejectionReason</p>
+                    }
                     @if (!string.IsNullOrWhiteSpace(entry.Comment))
                     {
                         <span class="order-card-customer entry-comment">@entry.Comment</span>
                     }
-
                     <div class="entry-actions">
-                        <button type="button" class="btn btn-outline-secondary"
-                                aria-expanded="@(reviewState.IsExpanded ? "true" : "false")"
-                                aria-controls="@($"reviews-{entry.Id:N}")"
-                                @onclick="() => ToggleReviewsAsync(entry.Id, reviewState)">
-                            @(reviewState.IsExpanded ? "Skjul vurderinger" : "Vis vurderinger")
-                            <span class="visually-hidden">for @TaskName(entry.TaskId) den @entry.Date.ToString("d/M")</span>
+                        <button class="btn btn-outline-secondary" type="button"
+                                aria-expanded="@IsExpanded(entry.Id)"
+                                @onclick="() => ToggleReviewsAsync(entry.Id)">
+                            @(IsExpanded(entry.Id) ? "Skjul vurderinger" : "Vis vurderinger")
                         </button>
-                        <a class="btn btn-outline-primary" href="@($"/register-time/{entry.Id:D}")">
-                            Rediger<span class="visually-hidden"> registrering for @TaskName(entry.TaskId) den @entry.Date.ToString("d/M")</span>
-                        </a>
-                    </div>
-
-                    <section id="@($"reviews-{entry.Id:N}")" class="entry-reviews"
-                             aria-label="@($"Vurderinger af {TaskName(entry.TaskId)} den {entry.Date:d/M}")"
-                             hidden="@(!reviewState.IsExpanded)">
-                        @if (reviewState.IsExpanded)
+                        @if (entry.Status is "Draft" or "Rejected")
                         {
-                            @if (reviewState.IsLoading)
-                            {
-                                <p role="status">Henter vurderinger...</p>
-                            }
-                            else
-                            {
-                                @if (reviewState.Error is not null)
-                                {
-                                    <p class="validation-message" role="alert">
-                                        Kunne ikke hente vurderinger. @reviewState.Error
-                                        @if (reviewState.HasLoaded)
-                                        {
-                                            <span> Tidligere hentede vurderinger vises nedenfor.</span>
-                                        }
-                                    </p>
-                                    <button type="button" class="btn btn-outline-primary mt-2"
-                                            @onclick="() => LoadReviewsAsync(entry.Id, reviewState, refresh: true)">
-                                        Prøv igen<span class="visually-hidden"> for @TaskName(entry.TaskId) den @entry.Date.ToString("d/M")</span>
-                                    </button>
-                                }
-                                @if (reviewState.HasLoaded && reviewState.Items.Count == 0)
-                                {
-                                    <p role="status">@(reviewState.Error is null ? "Ingen vurderinger endnu." : "Ingen vurderinger ved sidste hentning.")</p>
-                                }
-                                else if (reviewState.HasLoaded)
-                                {
-                                    <ul class="review-list">
-                                        @foreach (var review in reviewState.Items)
-                                        {
-                                            <li class="review-item" @key="review.Id">
-                                                <span class="review-decision">@StatusLabel(review.Decision)</span>
-                                                <span class="reviewed-at">Vurderet <time datetime="@review.ReviewedAt.ToString("O", CultureInfo.InvariantCulture)">@(review.ReviewedAt.ToLocalTime().ToString("dd/MM/yyyy 'kl.' HH:mm", CultureInfo.InvariantCulture))</time></span>
-                                                @if (!string.IsNullOrWhiteSpace(review.Reason))
-                                                {
-                                                    <span class="review-reason"><strong>Begrundelse:</strong> @review.Reason</span>
-                                                }
-                                            </li>
-                                        }
-                                    </ul>
-                                }
-                                @if (reviewState.HasLoaded && reviewState.Error is null)
-                                {
-                                    <button type="button" class="btn btn-outline-secondary mt-2"
-                                            @onclick="() => LoadReviewsAsync(entry.Id, reviewState, refresh: true)">
-                                        Opdater vurderinger<span class="visually-hidden"> for @TaskName(entry.TaskId) den @entry.Date.ToString("d/M")</span>
-                                    </button>
-                                }
-                            }
+                            <a class="btn btn-outline-primary" href="@($"/register-time/{entry.Id:D}")">Rediger</a>
                         }
-                    </section>
+                    </div>
+                    @if (IsExpanded(entry.Id))
+                    {
+                        var state = reviewStates[entry.Id];
+                        @if (state.IsLoading)
+                        {
+                            <p role="status">Henter vurderinger...</p>
+                        }
+                        else if (state.Error is not null)
+                        {
+                            <p class="validation-message" role="alert">@state.Error</p>
+                            <button class="btn btn-outline-primary" @onclick="() => LoadReviewsAsync(entry.Id, state)">Prøv igen</button>
+                        }
+                        else if (state.Items.Count == 0)
+                        {
+                            <p class="muted">Ingen vurderinger endnu.</p>
+                        }
+                        else
+                        {
+                            <ul class="review-list">
+                                @foreach (var review in state.Items)
+                                {
+                                    <li class="review-item" @key="review.Id">
+                                        <strong>@StatusLabel(review.Decision)</strong>
+                                        <time>@review.ReviewedAt.ToLocalTime().ToString("g", CultureInfo.GetCultureInfo("da-DK"))</time>
+                                        @if (!string.IsNullOrWhiteSpace(review.Reason))
+                                        {
+                                            <span>@review.Reason</span>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    }
                 </li>
             }
         </ul>
     }
-</div>
+</section>
 
 @code {
     private DateTime weekStart = StartOfWeek(DateTime.Today);
     private IReadOnlyList<TimeEntryResponse> entries = [];
-    private IReadOnlyList<OrderResponse> orders = [];
-    private IReadOnlyList<TaskResponse> tasks = [];
-    private Dictionary<Guid, ReviewState> reviewStates = [];
-    private string? loadError;
-    private string? catalogError;
+    private IReadOnlyList<AccessibleWorkResponse> workItems = [];
+    private readonly Dictionary<Guid, ReviewState> reviewStates = [];
     private bool isLoading = true;
+    private string? error;
+    private string? catalogError;
     private int loadVersion;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadCatalogAsync();
+        var catalog = await WorkItemsApi.GetAccessibleAsync();
+        if (catalog.IsSuccess)
+            workItems = catalog.Value!.Items;
+        else
+            catalogError = string.Join(" ", catalog.Errors.Select(item => item.Message));
         await LoadWeekAsync();
-    }
-
-    private async Task LoadCatalogAsync()
-    {
-        catalogError = null;
-        var ordersRequest = OrdersApiClient.GetOrdersAsync();
-        var tasksRequest = TasksApiClient.GetTasksAsync();
-
-        var orderResult = await ordersRequest;
-        var taskResult = await tasksRequest;
-
-        if (orderResult.IsSuccess)
-        {
-            orders = orderResult.Value!.Items.ToArray();
-        }
-        else
-        {
-            catalogError = string.Join(" ", orderResult.Errors.Select(error => error.Message));
-        }
-
-        if (taskResult.IsSuccess)
-        {
-            tasks = taskResult.Value!.Items.ToArray();
-        }
-        else
-        {
-            catalogError = string.Join(" ", new[] { catalogError }
-                .Where(message => !string.IsNullOrWhiteSpace(message))
-                .Concat(taskResult.Errors.Select(error => error.Message)));
-        }
     }
 
     private async Task ChangeWeek(int weeks)
@@ -185,63 +130,41 @@
     {
         var version = ++loadVersion;
         isLoading = true;
-        loadError = null;
-        entries = [];
-        reviewStates = [];
-
-        var result = await TimeEntriesApiClient.GetEntriesAsync(
-            DateOnly.FromDateTime(weekStart), DateOnly.FromDateTime(weekStart.AddDays(6)));
-        if (version != loadVersion)
-        {
-            return;
-        }
-
+        error = null;
+        var result = await TimeEntriesApi.GetEntriesAsync(DateOnly.FromDateTime(weekStart), DateOnly.FromDateTime(weekStart.AddDays(6)));
+        if (version != loadVersion) return;
         if (result.IsSuccess)
         {
             entries = result.Value!.Items.ToArray();
-            reviewStates = entries.Select(entry => entry.Id).Distinct()
-                .ToDictionary(id => id, _ => new ReviewState());
+            reviewStates.Clear();
+            foreach (var entry in entries)
+                reviewStates[entry.Id] = new ReviewState();
         }
         else
         {
-            loadError = string.Join(" ", result.Errors.Select(error => error.Message));
+            entries = [];
+            error = string.Join(" ", result.Errors.Select(item => item.Message));
         }
-
         isLoading = false;
     }
 
-    private async Task ToggleReviewsAsync(Guid entryId, ReviewState state)
-    {
-        if (!reviewStates.TryGetValue(entryId, out var current) || !ReferenceEquals(state, current))
-        {
-            return;
-        }
+    private bool IsExpanded(Guid id) => reviewStates.TryGetValue(id, out var state) && state.IsExpanded;
 
+    private async Task ToggleReviewsAsync(Guid id)
+    {
+        if (!reviewStates.TryGetValue(id, out var state)) return;
         state.IsExpanded = !state.IsExpanded;
-        if (state.IsExpanded && !state.HasLoaded && !state.IsLoading && state.Error is null)
-        {
-            await LoadReviewsAsync(entryId, state);
-        }
+        if (state.IsExpanded && !state.HasLoaded)
+            await LoadReviewsAsync(id, state);
     }
 
-    private async Task LoadReviewsAsync(Guid entryId, ReviewState state, bool refresh = false)
+    private async Task LoadReviewsAsync(Guid id, ReviewState state)
     {
-        if (state.IsLoading || (state.HasLoaded && !refresh) ||
-            !reviewStates.TryGetValue(entryId, out var current) || !ReferenceEquals(state, current))
-        {
-            return;
-        }
-
+        if (state.IsLoading) return;
         state.IsLoading = true;
         state.Error = null;
-        var result = await TimeEntriesApiClient.GetReviewsAsync(entryId);
-
-        // A week reload replaces the per-entry state, so old requests cannot populate a new week.
-        if (!reviewStates.TryGetValue(entryId, out current) || !ReferenceEquals(state, current))
-        {
-            return;
-        }
-
+        var result = await TimeEntriesApi.GetReviewsAsync(id);
+        if (!reviewStates.TryGetValue(id, out var current) || !ReferenceEquals(current, state)) return;
         state.IsLoading = false;
         if (result.IsSuccess)
         {
@@ -249,29 +172,26 @@
             state.HasLoaded = true;
         }
         else
-        {
-            state.Error = string.Join(" ", result.Errors.Select(error => error.Message));
-        }
+            state.Error = string.Join(" ", result.Errors.Select(item => item.Message));
     }
 
-    private static string StatusLabel(string? status)
+    private string WorkName(Guid id) =>
+        workItems.FirstOrDefault(item => item.Id == id) is { } work
+            ? $"{work.Name} · {work.CategoryName}"
+            : "Arbejdsopgave ikke længere tilgængelig";
+
+    private static string StatusLabel(string status) => status switch
     {
-        if (string.IsNullOrWhiteSpace(status))
-        {
-            return "Ukendt status";
-        }
+        "Draft" => "Kladde",
+        "ReadyForApproval" => "Afventer review",
+        "Approved" => "Godkendt",
+        "Rejected" => "Returneret",
+        "Closed" => "Afsluttet",
+        _ => status
+    };
 
-        return status.Trim().ToLowerInvariant() switch
-        {
-            "draft" => "Kladde",
-            "pending" => "Afventer godkendelse",
-            "submitted" => "Indsendt",
-            "returned" => "Returneret",
-            "accepted" => "Godkendt",
-            "finalized" => "Afsluttet",
-            _ => status
-        };
-    }
+    private static DateTime StartOfWeek(DateTime date) => date.Date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
+    private static string FormatHours(decimal hours) => hours.ToString("0.##", CultureInfo.InvariantCulture).Replace('.', ',');
 
     private sealed class ReviewState
     {
@@ -281,19 +201,4 @@
         public string? Error { get; set; }
         public IReadOnlyList<TimeEntryReviewResponse> Items { get; set; } = [];
     }
-
-    private string TaskName(Guid taskId) =>
-        tasks.FirstOrDefault(task => task.Id == taskId)?.Title ?? taskId.ToString("D");
-
-    private string OrderName(Guid taskId)
-    {
-        var orderId = tasks.FirstOrDefault(task => task.Id == taskId)?.OrderId;
-        return orders.FirstOrDefault(order => order.Id == orderId)?.Name ?? "Ukendt sag";
-    }
-
-    private static DateTime StartOfWeek(DateTime date) =>
-        date.Date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
-
-    private static string FormatHours(decimal hours) =>
-        hours.ToString("0.##", CultureInfo.InvariantCulture).Replace('.', ',');
 }

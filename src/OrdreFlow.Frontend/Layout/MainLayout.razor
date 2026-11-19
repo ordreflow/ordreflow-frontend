@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject AuthState AuthState
+@inject EmployeesApiClient EmployeesApi
 @inject NavigationManager Navigation
 
 <div class="page">
@@ -32,6 +33,11 @@
                 {
                     @Body
                 }
+                else if (profileError is not null)
+                {
+                    <p class="alert alert-danger" role="alert">@profileError</p>
+                    <button class="btn btn-outline-primary" @onclick="LoadProfileAsync">Prøv igen</button>
+                }
             </article>
         </main>
 
@@ -46,6 +52,7 @@
 @code {
     private bool isReady;
     private bool menuOpen;
+    private string? profileError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -53,6 +60,24 @@
         AuthState.Changed += OnAuthChanged;
 
         await AuthState.InitializeAsync();
+        if (AuthState.IsAuthenticated)
+            await LoadProfileAsync();
+        else
+            isReady = RedirectIfSignedOut();
+    }
+
+    private async Task LoadProfileAsync()
+    {
+        profileError = null;
+        var result = await EmployeesApi.GetMeAsync();
+        if (!result.IsSuccess)
+        {
+            isReady = false;
+            profileError = string.Join(" ", result.Errors.Select(item => item.Message));
+            return;
+        }
+
+        await AuthState.SetUserAsync(result.Value!);
         isReady = RedirectIfSignedOut();
     }
 

@@ -1,9 +1,6 @@
 @page "/time-entries/review"
 @using System.Globalization
 @inject ITimeEntriesApiClient TimeEntriesApiClient
-@inject UsersApiClient UsersApiClient
-@inject OrdersApiClient OrdersApiClient
-@inject TasksApiClient TasksApiClient
 @inject AuthState AuthState
 
 <PageTitle>Godkend tid | OrdreFlow</PageTitle>
@@ -12,12 +9,12 @@
     <header class="review-header">
         <p class="eyebrow">Tidsregistreringer</p>
         <h1>Godkend tid</h1>
-        <p class="muted">Se dine medarbejderes registreringer, og godkend eller afvis kladder.</p>
+        <p class="muted">Se registreringerne i dine kategorier, og godkend eller afvis dem.</p>
     </header>
 
-    @if (!CanReview)
+    @if (!AuthState.CanReviewTime)
     {
-        <p class="alert alert-info">Godkendelse af tid er kun tilgængelig for aktive managere og administratorer.</p>
+        <p class="alert alert-info">Godkendelse af tid kræver tilladelsen Kategorireviewer.</p>
     }
     else
     {
@@ -41,19 +38,14 @@
             <div>
                 <label for="status-filter">Status</label>
                 <select id="status-filter" class="form-select" @bind="statusFilter">
-                    <option value="Draft">Kladder</option>
-                    <option value="Accepted">Godkendte</option>
-                    <option value="Returned">Afviste</option>
-                    <option value="Finalized">Afsluttede</option>
                     <option value="">Alle</option>
+                    <option value="ReadyForApproval">Afventer</option>
+                    <option value="Approved">Godkendte</option>
+                    <option value="Rejected">Afviste</option>
+                    <option value="Closed">Afsluttede</option>
                 </select>
             </div>
         </div>
-
-        @if (catalogError is not null)
-        {
-            <p class="alert alert-warning" role="alert">Navne kunne ikke hentes. @catalogError</p>
-        }
 
         @if (notice is not null)
         {
@@ -76,12 +68,16 @@
             <p class="muted" aria-live="polite">
                 @VisibleEntries.Count @(VisibleEntries.Count == 1 ? "registrering" : "registreringer")
                 &middot; @FormatHours(VisibleEntries.Sum(entry => entry.Hours)) timer
+                @if (PendingCount > 0)
+                {
+                    <span> &middot; @PendingCount afventer godkendelse</span>
+                }
             </p>
 
             @if (VisibleEntries.Count == 0)
             {
                 <p class="empty-state">
-                    @(statusFilter == "Draft" ? "Der er ingen kladder, der venter på godkendelse." : "Ingen registreringer matcher filteret.")
+                    @(statusFilter == "ReadyForApproval" ? "Der er ingen registreringer, der venter på godkendelse." : "Ingen registreringer matcher filteret.")
                 </p>
             }
             else
@@ -91,11 +87,11 @@
                     {
                         var isBusy = busyEntryId == entry.Id;
 
-                        <li class="review-entry" @key="entry.Id">
+                        <li class="review-entry @StatusClass(entry.Status)" @key="entry.Id">
                             <div class="review-entry-top">
                                 <div class="review-entry-identity">
-                                    <strong class="review-employee">@EmployeeName(entry.EmployeeId)</strong>
-                                    <span>@TaskName(entry.TaskId) <span class="muted">(@OrderName(entry.TaskId))</span></span>
+                                    <strong class="review-employee">@(entry.EmployeeName ?? "Ukendt medarbejder")</strong>
+                                    <span>@(entry.TaskName ?? "Ukendt opgave") <span class="muted">(@WorkContext(entry))</span></span>
                                     <span class="muted">@DayName(entry.Date) @entry.Date.ToString("d/M", CultureInfo.InvariantCulture) &middot; @FormatHours(entry.Hours) timer</span>
                                 </div>
                                 <span class="status-badge @StatusClass(entry.Status)">@StatusLabel(entry.Status)</span>
@@ -106,7 +102,12 @@
                                 <p class="review-comment">@entry.Comment</p>
                             }
 
-                            @if (IsDraft(entry))
+                            @if (IsRejected(entry) && !string.IsNullOrWhiteSpace(entry.RejectionReason))
+                            {
+                                <p class="review-reason"><strong>Begrundelse:</strong> @entry.RejectionReason</p>
+                            }
+
+                            @if (IsPending(entry))
                             {
                                 @if (returningEntryId == entry.Id)
                                 {
@@ -161,14 +162,10 @@
 
     private DateTime weekStart = StartOfWeek(DateTime.Today);
     private IReadOnlyList<TimeEntryResponse> entries = [];
-    private IReadOnlyList<UserResponse> users = [];
-    private IReadOnlyList<OrderResponse> orders = [];
-    private IReadOnlyList<TaskResponse> tasks = [];
     private string employeeFilter = "";
-    private string statusFilter = "Draft";
+    private string statusFilter = "";
     private bool isLoading = true;
     private string? loadError;
-    private string? catalogError;
     private string? notice;
     private Guid? busyEntryId;
     private Guid? returningEntryId;
@@ -177,53 +174,27 @@
     private string? actionError;
     private int loadVersion;
 
-    // Same rule as the backend: only active managers and admins can review.
-    private bool CanReview => AuthState.User is { Role: "Manager" or "Admin", Status: "Active" };
-
     private IReadOnlyList<TimeEntryResponse> VisibleEntries => entries
         .Where(entry => employeeFilter == "" || entry.EmployeeId.ToString() == employeeFilter)
         .Where(entry => statusFilter == "" || string.Equals(entry.Status, statusFilter, StringComparison.OrdinalIgnoreCase))
         .OrderBy(entry => entry.Date)
-        .ThenBy(entry => EmployeeName(entry.EmployeeId))
+        .ThenBy(entry => entry.EmployeeName)
         .ToArray();
 
-    // The manager's own employees, plus anyone who has entries this week (admins may see others).
-    private IReadOnlyList<UserResponse> Employees => users
-        .Where(user => user.Id != AuthState.User?.Id &&
-                       (user.ManagerId == AuthState.User?.Id || entries.Any(entry => entry.EmployeeId == user.Id)))
-        .OrderBy(user => user.Name)
+    private int PendingCount => entries.Count(IsPending);
+
+    private IReadOnlyList<(Guid Id, string Name)> Employees => entries
+        .GroupBy(entry => entry.EmployeeId)
+        .Select(group => (group.Key, group.First().EmployeeName ?? "Ukendt medarbejder"))
+        .OrderBy(employee => employee.Item2)
         .ToArray();
 
     protected override async Task OnInitializedAsync()
     {
-        if (!CanReview)
-        {
+        if (!AuthState.CanReviewTime)
             return;
-        }
 
-        await Task.WhenAll(LoadCatalogAsync(), LoadWeekAsync());
-    }
-
-    // Names are only for display; the review list still works without them.
-    private async Task LoadCatalogAsync()
-    {
-        var usersRequest = UsersApiClient.GetUsersAsync();
-        var ordersRequest = OrdersApiClient.GetOrdersAsync();
-        var tasksRequest = TasksApiClient.GetTasksAsync();
-        var userResult = await usersRequest;
-        var orderResult = await ordersRequest;
-        var taskResult = await tasksRequest;
-
-        users = userResult.IsSuccess ? userResult.Value!.Items.ToArray() : [];
-        orders = orderResult.IsSuccess ? orderResult.Value!.Items.ToArray() : [];
-        tasks = taskResult.IsSuccess ? taskResult.Value!.Items.ToArray() : [];
-
-        var errors = new[] { userResult.Errors, orderResult.Errors, taskResult.Errors }
-            .SelectMany(list => list)
-            .Select(error => error.Message)
-            .Distinct()
-            .ToArray();
-        catalogError = errors.Length == 0 ? null : string.Join(" ", errors);
+        await LoadWeekAsync();
     }
 
     private async Task ChangeWeek(int weeks)
@@ -240,12 +211,10 @@
         isLoading = true;
         loadError = null;
 
-        var result = await TimeEntriesApiClient.GetManagerEntriesAsync(
+        var result = await TimeEntriesApiClient.GetReviewerEntriesAsync(
             DateOnly.FromDateTime(weekStart), DateOnly.FromDateTime(weekStart.AddDays(6)));
         if (version != loadVersion)
-        {
             return;
-        }
 
         if (result.IsSuccess)
         {
@@ -281,8 +250,9 @@
         actionErrorEntryId = null;
         notice = null;
 
-        var reason = decision == Return ? returnReason.Trim() : null;
-        var result = await TimeEntriesApiClient.ReviewAsync(entry.Id, new ReviewTimeEntryRequest(decision, reason));
+        var result = decision == Accept
+            ? await TimeEntriesApiClient.AcceptAsync(entry.Id)
+            : await TimeEntriesApiClient.ReturnAsync(entry.Id, new RejectTimeEntryRequest(returnReason.Trim()));
 
         busyEntryId = null;
 
@@ -294,41 +264,36 @@
         }
 
         CancelReturn();
+        var name = entry.EmployeeName ?? "medarbejderen";
         notice = decision == Accept
-            ? $"Registreringen fra {EmployeeName(entry.EmployeeId)} er godkendt."
-            : $"Registreringen fra {EmployeeName(entry.EmployeeId)} er afvist.";
+            ? $"Registreringen fra {name} er godkendt."
+            : $"Registreringen fra {name} er afvist.";
         await LoadWeekAsync();
     }
 
-    private static bool IsDraft(TimeEntryResponse entry) =>
-        string.Equals(entry.Status, "Draft", StringComparison.OrdinalIgnoreCase);
+    private static bool IsPending(TimeEntryResponse entry) =>
+        string.Equals(entry.Status, "ReadyForApproval", StringComparison.OrdinalIgnoreCase);
 
-    private string EmployeeName(Guid employeeId) =>
-        users.FirstOrDefault(user => user.Id == employeeId)?.Name ?? "Ukendt medarbejder";
+    private static bool IsRejected(TimeEntryResponse entry) =>
+        string.Equals(entry.Status, "Rejected", StringComparison.OrdinalIgnoreCase);
 
-    private string TaskName(Guid taskId) =>
-        tasks.FirstOrDefault(task => task.Id == taskId)?.Title ?? "Ukendt opgave";
+    private static string WorkContext(TimeEntryResponse entry) =>
+        entry.DepartmentName is null ? "Ukendt kategori" : $"{entry.DepartmentName} · {entry.CategoryName}";
 
-    private string OrderName(Guid taskId)
+    private static string StatusLabel(string status) => status switch
     {
-        var orderId = tasks.FirstOrDefault(task => task.Id == taskId)?.OrderId;
-        return orders.FirstOrDefault(order => order.Id == orderId)?.Name ?? "Ukendt sag";
-    }
-
-    private static string StatusLabel(string status) => status.ToLowerInvariant() switch
-    {
-        "draft" => "Kladde",
-        "accepted" => "Godkendt",
-        "returned" => "Afvist",
-        "finalized" => "Afsluttet",
+        "ReadyForApproval" => "Afventer",
+        "Approved" => "Godkendt",
+        "Rejected" => "Afvist",
+        "Closed" => "Afsluttet",
         _ => status
     };
 
-    private static string StatusClass(string status) => status.ToLowerInvariant() switch
+    private static string StatusClass(string status) => status switch
     {
-        "draft" => "draft",
-        "accepted" or "finalized" => "accepted",
-        "returned" => "returned",
+        "ReadyForApproval" => "draft",
+        "Approved" or "Closed" => "accepted",
+        "Rejected" => "returned",
         _ => ""
     };
 
