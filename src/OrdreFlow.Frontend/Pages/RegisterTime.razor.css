@@ -79,6 +79,17 @@
         font-size: 0.95rem;
     }
 
+.field-hint {
+    margin: 0.4rem 0 0;
+    color: var(--of-muted);
+    font-size: 0.88rem;
+}
+
+.register-card ::deep .form-select-lg:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
 .register-card ::deep .form-select-lg,
 .register-card ::deep .form-control {
     min-height: 3rem;

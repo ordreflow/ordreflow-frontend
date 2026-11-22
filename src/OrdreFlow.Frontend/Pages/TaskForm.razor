@@ -28,7 +28,13 @@
         @if (IsEditing)
         {
             <div class="edit-banner">
-                <span>Du redigerer @(editingCategoryId is not null ? "en kategori" : "en opgave").</span>
+                <span>
+                    Du redigerer @(editingCategoryId is not null ? "en kategori" : "en opgave").
+                    @if (EditingIsInactive)
+                    {
+                        <span class="d-block small fw-normal">Den er deaktiveret og kan ikke vælges til tidsregistrering.</span>
+                    }
+                </span>
                 <button type="button" class="btn btn-link p-0" @onclick="CancelEdit">Annuller</button>
             </div>
         }
@@ -132,9 +138,13 @@
                 </EditForm>
             }
         }
-        else if (categories.Count == 0)
+        else if (SelectableCategories.Count == 0)
         {
-            <p class="of-muted">Opret først en kategori i en afdeling, du administrerer.</p>
+            <p class="of-muted">
+                @(categories.Count == 0
+                    ? "Opret først en kategori i en afdeling, du administrerer."
+                    : "Alle dine kategorier er deaktiverede. Aktivér en kategori nedenfor, eller opret en ny.")
+            </p>
             <button type="button" class="btn btn-outline-primary" @onclick="() => SwitchMode(Mode.Category)">Opret kategori</button>
         }
         else
@@ -146,12 +156,12 @@
                     <InputSelect id="category" class="form-select form-select-lg" @bind-Value="workForm.CategoryId"
                                  @bind-Value:after="ClearAssignees" disabled="@(editingWorkItemId is not null)">
                         <option value="">Vælg kategori</option>
-                        @foreach (var group in categories.GroupBy(category => category.DepartmentName))
+                        @foreach (var group in SelectableCategories.GroupBy(category => category.DepartmentName))
                         {
                             <optgroup label="@group.Key">
                                 @foreach (var category in group)
                                 {
-                                    <option value="@category.Id">@category.Name</option>
+                                    <option value="@category.Id">@category.Name@(IsActive(category.Status) ? "" : " (deaktiveret)")</option>
                                 }
                             </optgroup>
                         }
@@ -257,53 +267,265 @@
 
 @if (AuthState.CanPlanWork && !isLoading && categories.Count > 0)
 {
-    <section class="of-card category-overview">
-        <h2>Dine kategorier</h2>
-        <p class="of-muted">Tryk på en kategori eller en opgave for at redigere den.</p>
-        <ul class="order-list">
-            @foreach (var category in categories)
+    <section class="of-card category-overview" aria-labelledby="overview-title">
+        <div class="overview-header">
+            <div>
+                <h2 id="overview-title">Dine kategorier</h2>
+                <p class="of-muted mb-0">Tryk på en kategori eller en opgave for at redigere den.</p>
+            </div>
+        </div>
+
+        <div class="status-filter" role="group" aria-label="Vis kategorier og opgaver">
+            @foreach (var option in StatusFilters)
             {
-                <li @key="category.Id">
-                    <div class="order-card category-card @(editingCategoryId == category.Id ? "order-card-selected" : null)">
-                        <button type="button" class="category-edit-btn" @onclick="() => EditCategory(category)"
-                                aria-label="Rediger kategorien @category.Name">
-                            <span class="order-card-name">@category.Name</span>
-                            <span class="order-card-customer">@category.DepartmentName · @category.WorkItems.Count @(category.WorkItems.Count == 1 ? "opgave" : "opgaver")</span>
-                            <span class="order-card-customer">Godkendes af: @ReviewerNames(category)</span>
-                            <span class="edit-hint">Rediger</span>
-                        </button>
-                        @if (category.WorkItems.Count > 0)
-                        {
-                            <ul class="category-items">
-                                @foreach (var item in category.WorkItems)
-                                {
-                                    <li @key="item.Id">
-                                        <button type="button" class="work-item-btn @(editingWorkItemId == item.Id ? "selected" : null)"
-                                                @onclick="() => EditWorkItem(category, item)" aria-label="Rediger opgaven @item.Name">
-                                            <span class="work-item-name">@item.Name</span>
-                                            <span class="kind-tag">@KindLabel(item.Kind)</span>
-                                            @if (item.AssignmentOnly)
-                                            {
-                                                <span class="kind-tag private">Kun tildelte</span>
-                                            }
-                                            @if (item.Assignments is { Count: > 0 } assigned)
-                                            {
-                                                <span class="assignee-count">@AssigneeNames(category, assigned)</span>
-                                            }
-                                        </button>
-                                    </li>
-                                }
-                            </ul>
-                        }
-                    </div>
-                </li>
+                <button type="button" class="status-filter-btn @(statusFilter == option.Value ? "selected" : null)"
+                        aria-pressed="@(statusFilter == option.Value ? "true" : "false")"
+                        @onclick="() => statusFilter = option.Value">
+                    @option.Label
+                    @if (option.Value == StatusFilter.Inactive && InactiveCount > 0)
+                    {
+                        <span class="filter-count">@InactiveCount</span>
+                    }
+                </button>
             }
-        </ul>
+        </div>
+
+        @if (statusMessage is not null)
+        {
+            <div class="status-message @(statusMessageIsError ? "is-error" : null)" role="@(statusMessageIsError ? "alert" : "status")">
+                <span>@statusMessage</span>
+                @if (undo is not null)
+                {
+                    <button type="button" class="btn btn-link p-0" disabled="@(togglingId is not null)" @onclick="UndoAsync">Fortryd</button>
+                }
+            </div>
+        }
+
+        @if (!VisibleCategories.Any())
+        {
+            <p class="empty-filter">
+                @(statusFilter switch
+                {
+                    StatusFilter.Active => "Du har ingen aktive kategorier. Vælg \"Deaktiverede\" for at genaktivere en kategori.",
+                    StatusFilter.Inactive => "Der er ingen deaktiverede kategorier eller opgaver.",
+                    _ => "Du har ingen kategorier endnu."
+                })
+            </p>
+        }
+        else
+        {
+            <ul class="order-list">
+                @foreach (var (category, items) in VisibleCategories)
+                {
+                    var categoryActive = IsActive(category.Status);
+                    <li @key="category.Id">
+                        <div class="order-card category-card @(editingCategoryId == category.Id ? "order-card-selected" : null) @(categoryActive ? null : "is-inactive")">
+                            <div class="category-head">
+                                <button type="button" class="category-edit-btn" @onclick="() => EditCategory(category)"
+                                        aria-label="Rediger kategorien @category.Name">
+                                    <span class="order-card-name">
+                                        @category.Name
+                                        @if (!categoryActive)
+                                        {
+                                            <span class="status-badge">Deaktiveret</span>
+                                        }
+                                    </span>
+                                    <span class="order-card-customer">@category.DepartmentName · @WorkItemSummary(category)</span>
+                                    <span class="order-card-customer">Godkendes af: @ReviewerNames(category)</span>
+                                    @if (!categoryActive)
+                                    {
+                                        <span class="inactive-hint">Kategorien og alle dens opgaver kan ikke vælges til tidsregistrering.</span>
+                                    }
+                                    <span class="edit-hint">Rediger</span>
+                                </button>
+                                <button type="button" class="status-toggle @(categoryActive ? null : "activate")"
+                                        disabled="@(togglingId is not null)"
+                                        aria-label="@(categoryActive ? "Deaktiver" : "Aktivér") kategorien @category.Name"
+                                        @onclick="() => SetCategoryActiveAsync(category, !categoryActive)">
+                                    @(togglingId == category.Id ? "Gemmer..." : categoryActive ? "Deaktiver" : "Aktivér")
+                                </button>
+                            </div>
+                            @if (items.Count > 0)
+                            {
+                                <ul class="category-items">
+                                    @foreach (var item in items)
+                                    {
+                                        var itemActive = IsActive(item.Status);
+                                        <li @key="item.Id" class="work-item-row @(itemActive ? null : "is-inactive")">
+                                            <button type="button" class="work-item-btn @(editingWorkItemId == item.Id ? "selected" : null)"
+                                                    @onclick="() => EditWorkItem(category, item)" aria-label="Rediger opgaven @item.Name">
+                                                <span class="work-item-name">@item.Name</span>
+                                                <span class="kind-tag">@KindLabel(item.Kind)</span>
+                                                @if (!itemActive)
+                                                {
+                                                    <span class="status-badge">Deaktiveret</span>
+                                                }
+                                                @if (item.AssignmentOnly)
+                                                {
+                                                    <span class="kind-tag private">Kun tildelte</span>
+                                                }
+                                                @if (item.Assignments is { Count: > 0 } assigned)
+                                                {
+                                                    <span class="assignee-count">@AssigneeNames(category, assigned)</span>
+                                                }
+                                            </button>
+                                            <button type="button" class="status-toggle small @(itemActive ? null : "activate")"
+                                                    disabled="@(togglingId is not null)"
+                                                    title="@(itemActive || categoryActive ? null : "Opgaven bliver først valgbar, når kategorien også er aktiv.")"
+                                                    aria-label="@(itemActive ? "Deaktiver" : "Aktivér") opgaven @item.Name"
+                                                    @onclick="() => SetWorkItemActiveAsync(category, item, !itemActive)">
+                                                @(togglingId == item.Id ? "Gemmer..." : itemActive ? "Deaktiver" : "Aktivér")
+                                            </button>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
     </section>
 }
 
 @code {
     private enum Mode { WorkItem, Category }
+
+    private enum StatusFilter { Active, Inactive, All }
+
+    private static readonly (StatusFilter Value, string Label)[] StatusFilters =
+    [
+        (StatusFilter.Active, "Aktive"),
+        (StatusFilter.Inactive, "Deaktiverede"),
+        (StatusFilter.All, "Alle")
+    ];
+
+    private StatusFilter statusFilter = StatusFilter.Active;
+    private Guid? togglingId;
+    private string? statusMessage;
+    private bool statusMessageIsError;
+    private Func<Task>? undo;
+
+    private static bool IsActive(string status) => string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase);
+
+    // Active view: active categories with their active work. Deactivated view: deactivated categories (with all their
+    // work, since none of it can be selected) and deactivated work in active categories.
+    private IEnumerable<(PlannableCategoryResponse Category, IReadOnlyList<WorkItemResponse> Items)> VisibleCategories =>
+        categories
+            .Select(category =>
+            {
+                var categoryActive = IsActive(category.Status);
+                IReadOnlyList<WorkItemResponse> items = statusFilter switch
+                {
+                    StatusFilter.Active => categoryActive ? category.WorkItems.Where(item => IsActive(item.Status)).ToArray() : [],
+                    StatusFilter.Inactive => categoryActive ? category.WorkItems.Where(item => !IsActive(item.Status)).ToArray() : category.WorkItems,
+                    _ => category.WorkItems
+                };
+                var visible = statusFilter switch
+                {
+                    StatusFilter.Active => categoryActive,
+                    StatusFilter.Inactive => !categoryActive || items.Count > 0,
+                    _ => true
+                };
+                return (Category: category, Items: items, Visible: visible);
+            })
+            .Where(entry => entry.Visible)
+            .Select(entry => (entry.Category, entry.Items));
+
+    private int InactiveCount =>
+        categories.Count(category => !IsActive(category.Status)) +
+        categories.Where(category => IsActive(category.Status)).Sum(category => category.WorkItems.Count(item => !IsActive(item.Status)));
+
+    // New work can only be created in active categories; an item being edited keeps showing its own category.
+    private IReadOnlyList<PlannableCategoryResponse> SelectableCategories =>
+        categories
+            .Where(category => IsActive(category.Status) ||
+                               (editingWorkItemId is not null && category.Id.ToString() == workForm.CategoryId))
+            .ToArray();
+
+    private bool EditingIsInactive =>
+        editingCategoryId is Guid categoryId
+            ? categories.FirstOrDefault(item => item.Id == categoryId) is { } category && !IsActive(category.Status)
+            : editingWorkItemId is Guid workItemId &&
+              categories.SelectMany(item => item.WorkItems).FirstOrDefault(item => item.Id == workItemId) is { } work &&
+              !IsActive(work.Status);
+
+    private static string WorkItemSummary(PlannableCategoryResponse category)
+    {
+        var active = category.WorkItems.Count(item => IsActive(item.Status));
+        var inactive = category.WorkItems.Count - active;
+        var summary = $"{active} {(active == 1 ? "aktiv opgave" : "aktive opgaver")}";
+        return inactive == 0 ? summary : $"{summary} · {inactive} deaktiveret";
+    }
+
+    private async Task SetCategoryActiveAsync(PlannableCategoryResponse category, bool active)
+    {
+        if (togglingId is not null) return;
+        togglingId = category.Id;
+        var result = await PlanningApi.SetCategoryActiveAsync(category.Id, active);
+        togglingId = null;
+        if (!result.IsSuccess)
+        {
+            ShowStatus($"Kategorien \"{category.Name}\" kunne ikke {(active ? "aktiveres" : "deaktiveres")}. {Errors(result)}", isError: true);
+            return;
+        }
+
+        var status = active ? "Active" : "Closed";
+        categories = categories.Select(item => item.Id == category.Id ? item with { Status = status } : item).ToArray();
+        ShowStatus(active
+                ? $"Kategorien \"{category.Name}\" er aktiveret igen."
+                : $"Kategorien \"{category.Name}\" er deaktiveret. Den og dens opgaver kan ikke længere vælges.",
+            undoAction: () => SetCategoryActiveAsync(category, !active));
+    }
+
+    private async Task SetWorkItemActiveAsync(PlannableCategoryResponse category, WorkItemResponse workItem, bool active)
+    {
+        if (togglingId is not null) return;
+        togglingId = workItem.Id;
+        var result = await PlanningApi.SetWorkItemActiveAsync(workItem.Id, active);
+        togglingId = null;
+        if (!result.IsSuccess)
+        {
+            ShowStatus($"Opgaven \"{workItem.Name}\" kunne ikke {(active ? "aktiveres" : "deaktiveres")}. {Errors(result)}", isError: true);
+            return;
+        }
+
+        var status = active ? "Active" : "Closed";
+        categories = categories
+            .Select(item => item.Id != category.Id
+                ? item
+                : item with
+                {
+                    WorkItems = item.WorkItems.Select(work => work.Id == workItem.Id ? work with { Status = status } : work).ToArray()
+                })
+            .ToArray();
+        var categoryActive = categories.FirstOrDefault(item => item.Id == category.Id) is { } current && IsActive(current.Status);
+        ShowStatus(active
+                ? categoryActive
+                    ? $"Opgaven \"{workItem.Name}\" er aktiveret igen."
+                    : $"Opgaven \"{workItem.Name}\" er aktiveret, men kan først vælges, når kategorien \"{category.Name}\" også er aktiv."
+                : $"Opgaven \"{workItem.Name}\" er deaktiveret og kan ikke længere vælges.",
+            undoAction: () => SetWorkItemActiveAsync(category, workItem, !active));
+    }
+
+    private void ShowStatus(string message, bool isError = false, Func<Task>? undoAction = null)
+    {
+        statusMessage = message;
+        statusMessageIsError = isError;
+        undo = undoAction;
+    }
+
+    private async Task UndoAsync()
+    {
+        var action = undo;
+        undo = null;
+        if (action is not null)
+        {
+            await action();
+            // The undo itself should not offer to be undone.
+            if (!statusMessageIsError) undo = null;
+        }
+    }
 
     private static readonly (string Value, string Label)[] Kinds =
     [

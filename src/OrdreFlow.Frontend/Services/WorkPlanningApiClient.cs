@@ -30,6 +30,18 @@ public sealed class WorkPlanningApiClient(HttpClient httpClient)
         ApiResponse.WriteAsync(
             () => httpClient.PutAsJsonAsync($"api/categories/{categoryId:D}", request, cancellationToken), cancellationToken);
 
+    /// <summary>Deactivated categories and all their work can no longer be selected for time registration.</summary>
+    public Task<ApiResult<bool>> SetCategoryActiveAsync(Guid categoryId, bool active, CancellationToken cancellationToken = default) =>
+        ApiResponse.WriteAsync(
+            () => httpClient.PostAsync($"api/categories/{categoryId:D}/{(active ? "activate" : "deactivate")}", null, cancellationToken),
+            cancellationToken);
+
+    /// <summary>Deactivated work can no longer be selected for time registration.</summary>
+    public Task<ApiResult<bool>> SetWorkItemActiveAsync(Guid workItemId, bool active, CancellationToken cancellationToken = default) =>
+        ApiResponse.WriteAsync(
+            () => httpClient.PostAsync($"api/work-items/{workItemId:D}/{(active ? "activate" : "deactivate")}", null, cancellationToken),
+            cancellationToken);
+
     public Task<ApiResult<bool>> UpdateWorkItemAsync(
         Guid workItemId,
         UpdateWorkItemRequest request,

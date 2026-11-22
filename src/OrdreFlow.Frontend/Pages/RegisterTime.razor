@@ -42,21 +42,56 @@
             }
             else
             {
-                <div class="form-field">
-                    <label for="work-item">Arbejdsopgave</label>
-                    <InputSelect id="work-item" class="form-select form-select-lg" @bind-Value="form.WorkItemId">
-                        <option value="">Vælg arbejde</option>
-                        @foreach (var work in workItems)
+                @if (workItems.Count == 0)
+                {
+                    <p class="register-message">Der er ikke noget arbejde, du kan registrere tid på.</p>
+                }
+                else
+                {
+                    <div class="form-field">
+                        <label for="category">Kategori</label>
+                        <InputSelect id="category" class="form-select form-select-lg" @bind-Value="form.CategoryId"
+                                     @bind-Value:after="CategoryChanged">
+                            <option value="">Vælg kategori</option>
+                            @foreach (var department in Categories.GroupBy(category => category.DepartmentName))
+                            {
+                                @if (HasSeveralDepartments)
+                                {
+                                    <optgroup label="@department.Key">
+                                        @foreach (var category in department)
+                                        {
+                                            <option value="@category.Id">@category.Name</option>
+                                        }
+                                    </optgroup>
+                                }
+                                else
+                                {
+                                    @foreach (var category in department)
+                                    {
+                                        <option value="@category.Id">@category.Name</option>
+                                    }
+                                }
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="form-field">
+                        <label for="work-item">Opgave</label>
+                        <InputSelect id="work-item" class="form-select form-select-lg" @bind-Value="form.WorkItemId"
+                                     disabled="@(form.CategoryId is null)"
+                                     aria-describedby="@(string.IsNullOrWhiteSpace(SelectedWorkItem?.Description) ? null : "work-item-hint")">
+                            <option value="">@(form.CategoryId is null ? "Vælg først en kategori" : "Vælg opgave")</option>
+                            @foreach (var work in WorkInCategory)
+                            {
+                                <option value="@work.Id">@work.Name@(work.AssignedToMe ? " · Tildelt dig" : "")</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="() => form.WorkItemId" />
+                        @if (SelectedWorkItem is { } chosen && !string.IsNullOrWhiteSpace(chosen.Description))
                         {
-                            <option value="@work.Id">@work.DepartmentName · @work.CategoryName · @work.Name</option>
+                            <p id="work-item-hint" class="field-hint">@chosen.Description</p>
                         }
-                    </InputSelect>
-                    <ValidationMessage For="() => form.WorkItemId" />
-                    @if (workItems.Count == 0)
-                    {
-                        <p class="register-message">Der er ikke noget arbejde, du kan registrere tid på.</p>
-                    }
-                </div>
+                    </div>
+                }
             }
 
             <div class="form-section">
@@ -129,6 +164,48 @@
 
     private bool IsEdit => EntryId is not null;
 
+    private sealed record CategoryOption(Guid Id, string Name, string DepartmentName);
+
+    // Categories are derived from the work the employee may register on, so only usable categories are offered.
+    private IReadOnlyList<CategoryOption> Categories => workItems
+        .GroupBy(work => work.CategoryId)
+        .Select(group => new CategoryOption(group.Key, group.First().CategoryName, group.First().DepartmentName))
+        .OrderBy(category => category.DepartmentName, StringComparer.CurrentCultureIgnoreCase)
+        .ThenBy(category => category.Name, StringComparer.CurrentCultureIgnoreCase)
+        .ToArray();
+
+    private bool HasSeveralDepartments => workItems.Select(work => work.DepartmentId).Distinct().Skip(1).Any();
+
+    // Work assigned to the employee comes first.
+    private IEnumerable<AccessibleWorkResponse> WorkInCategory => workItems
+        .Where(work => work.CategoryId == form.CategoryId)
+        .OrderByDescending(work => work.AssignedToMe)
+        .ThenBy(work => work.Name, StringComparer.CurrentCultureIgnoreCase);
+
+    private AccessibleWorkResponse? SelectedWorkItem => workItems.FirstOrDefault(work => work.Id == form.WorkItemId);
+
+    private void CategoryChanged()
+    {
+        form.WorkItemId = null;
+        SelectOnlyWorkItem();
+    }
+
+    // Spare the employee a click when there is only one choice.
+    private void SelectOnlyCategory()
+    {
+        if (Categories is [var only])
+        {
+            form.CategoryId = only.Id;
+            SelectOnlyWorkItem();
+        }
+    }
+
+    private void SelectOnlyWorkItem()
+    {
+        if (WorkInCategory.ToArray() is [var only])
+            form.WorkItemId = only.Id;
+    }
+
     protected override Task OnParametersSetAsync() => LoadAsync();
 
     private async Task LoadAsync()
@@ -166,7 +243,10 @@
         {
             var result = await WorkItemsApi.GetAccessibleAsync();
             if (result.IsSuccess)
+            {
                 workItems = result.Value!.Items;
+                SelectOnlyCategory();
+            }
             else
                 loadError = Errors(result);
         }
@@ -196,7 +276,9 @@
 
     private sealed class TimeEntryForm
     {
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Vælg en arbejdsopgave.")]
+        // Only used to narrow the work item list; the time entry is registered on the work item.
+        public Guid? CategoryId { get; set; }
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Vælg en opgave.")]
         public Guid? WorkItemId { get; set; }
         [System.ComponentModel.DataAnnotations.Range(0.25, 24, ErrorMessage = "Timer skal være mellem 0,25 og 24.")]
         public decimal? Hours { get; set; } = 1m;
