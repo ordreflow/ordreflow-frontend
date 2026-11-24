@@ -23,6 +23,7 @@ builder.Services.AddScoped(sp => new HttpClient(new BearerTokenHandler(sp.GetReq
 });
 builder.Services.AddScoped<AuthApiClient>();
 builder.Services.AddScoped<ITimeEntriesApiClient, TimeEntriesApiClient>();
+builder.Services.AddScoped<TimeEntrySaveNotice>();
 builder.Services.AddScoped<BackendHealthClient>();
 builder.Services.AddScoped<EmployeesApiClient>();
 builder.Services.AddScoped<DepartmentsApiClient>();

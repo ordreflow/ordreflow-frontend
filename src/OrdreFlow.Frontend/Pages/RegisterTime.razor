@@ -2,6 +2,7 @@
 @page "/register-time/{EntryId:guid}"
 @inject WorkItemsApiClient WorkItemsApi
 @inject ITimeEntriesApiClient TimeEntriesApi
+@inject TimeEntrySaveNotice SaveNotice
 @inject NavigationManager Navigation
 
 <PageTitle>@(IsEdit ? "Rediger registrering" : "Registrer tid") | OrdreFlow</PageTitle>
@@ -266,7 +267,10 @@
             ? await TimeEntriesApi.UpdateAsync(EntryId!.Value, new UpdateTimeEntryRequest(date, hours, form.Comment))
             : await TimeEntriesApi.CreateAsync(new CreateTimeEntryRequest(id, date, hours, form.Comment));
         if (result.IsSuccess)
+        {
+            SaveNotice.Set(IsEdit ? "Ændringerne er gemt." : "Tiden er registreret.");
             Navigation.NavigateTo($"/?date={date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)}");
+        }
         else
             submitError = Errors(result);
         isSubmitting = false;

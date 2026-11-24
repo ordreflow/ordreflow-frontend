@@ -60,8 +60,8 @@ public abstract class PageTestContext : TestContext
                 return new(HttpStatusCode.OK) { Content = file };
             };
 
-        public void Accept(HttpMethod method, string path) =>
-            responses[(method, path)] = () => new(HttpStatusCode.NoContent);
+        public void Accept(HttpMethod method, string path, HttpStatusCode status = HttpStatusCode.NoContent) =>
+            responses[(method, path)] = () => new(status);
 
         public void Fail(HttpMethod method, string path, HttpStatusCode status, ApiError error) =>
             responses[(method, path)] = () => new(status)
