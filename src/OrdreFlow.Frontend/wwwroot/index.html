@@ -7,6 +7,7 @@
     <title>OrdreFlow</title>
     <base href="/" />
     <meta name="theme-color" content="#0b1020" />
+    <link rel="manifest" href="manifest.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
@@ -35,6 +36,12 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
     <script src="_framework/blazor.webassembly.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' })
+                .catch(error => console.error('Service worker registration failed:', error));
+        }
+    </script>
 </body>
 
 </html>

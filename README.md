@@ -107,6 +107,16 @@ The frontend communicates with the backend through HTTP/JSON only. It does not c
 
 The shared footer checks `GET api/health` on load and every 30 seconds while the app is open. It displays the backend as available only for a successful response containing `{"status":"ok"}`. The check uses the configured `ApiBaseUrl` (and the existing `/api/` proxy in the Docker image).
 
+## Installable app (PWA)
+
+OrdreFlow has a web app manifest and service worker, so browsers can offer **Install app** (or **Add to Home Screen** on iOS) when served over HTTPS or localhost. The installed app opens in its own window. The existing OrdreFlow icon is used for the home-screen icon.
+
+In published builds, Blazor generates `service-worker-assets.js`; the published service worker caches the versioned static app files and supports loading the app shell after a successful online visit. Development builds use a network-only service worker so local changes appear immediately. Updates download in the background and normally become active after all app tabs are closed.
+
+All `/api/` calls remain network-only. Signing in, loading the employee profile, and working with time entries still require the backend. External Google Fonts and the D3 chart script are also not part of the offline cache. Offline data, edits, and synchronization are future work; installing the PWA does not enable them.
+
+To check the published behavior, run `dotnet publish src/OrdreFlow.Frontend/OrdreFlow.Frontend.csproj -c Release`, serve its `wwwroot` output on localhost or HTTPS (with SPA fallback to `index.html`), and check the browser's Application panel for the manifest, registered service worker, and installation option. Visit once online before trying an offline reload. Use a real backend to check API-dependent screens.
+
 ## Running Locally
 
 Install [Flox](https://flox.dev/docs/install-flox/install/) before setting up the
