@@ -1,3 +1,65 @@
+.save-toast {
+    position: fixed;
+    z-index: 18;
+    top: calc(3.75rem + 0.75rem);
+    left: 1rem;
+    right: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    max-width: 26rem;
+    min-height: 3.5rem;
+    margin: 0 auto;
+    padding: 0.7rem 0.75rem;
+    border: 1px solid var(--of-border);
+    border-left: 4px solid var(--of-success);
+    border-radius: 0.75rem;
+    background: var(--of-surface);
+    color: var(--of-text);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+    animation: save-toast-in 0.2s ease-out;
+}
+
+.save-toast-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    color: var(--of-success);
+}
+
+.save-toast-close {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 2.5rem;
+    height: 2.5rem;
+    margin-left: auto;
+    border: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--of-muted);
+    cursor: pointer;
+}
+
+.save-toast-close:hover {
+    background: var(--of-primary-soft);
+    color: var(--of-text);
+}
+
+.save-toast-close:focus-visible {
+    outline: 2px solid var(--of-primary);
+    outline-offset: 2px;
+}
+
+@keyframes save-toast-in {
+    from { opacity: 0; transform: translateY(-0.5rem); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .save-toast { animation: none; }
+}
+
 .dashboard {
     display: flex;
     flex-direction: column;
@@ -402,6 +464,12 @@
 /* Desktop: week on the left, total and action on the right */
 
 @media (min-width: 900px) {
+    .save-toast {
+        top: 1.25rem;
+        left: auto;
+        right: 1.25rem;
+    }
+
     .dashboard {
         display: grid;
         grid-template-columns: minmax(0, 1fr) 18rem;

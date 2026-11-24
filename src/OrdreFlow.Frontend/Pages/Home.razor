@@ -1,11 +1,24 @@
 @page "/"
 @using System.Globalization
+@implements IDisposable
 @inject ITimeEntriesApiClient TimeEntriesApi
 @inject WorkItemsApiClient WorkItemsApi
 @inject EmployeesApiClient EmployeesApi
+@inject TimeEntrySaveNotice SaveNotice
 @inject NavigationManager Navigation
 
 <PageTitle>OrdreFlow</PageTitle>
+
+@if (notice is not null)
+{
+    <div class="save-toast" role="status">
+        <span class="save-toast-icon"><NavIcon Name="check" /></span>
+        <span>@notice</span>
+        <button type="button" class="save-toast-close" aria-label="Luk bekræftelse" @onclick="DismissNotice">
+            <NavIcon Name="close" />
+        </button>
+    </div>
+}
 
 <div class="dashboard">
     <section class="dashboard-main">
@@ -193,6 +206,8 @@
     private string? loadError;
     private string? catalogError;
     private string? detailsError;
+    private string? notice;
+    private CancellationTokenSource? noticeTimeout;
     private bool isLoading = true;
     private bool isDeleting;
     private bool confirmDelete;
@@ -202,6 +217,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        notice = SaveNotice.Take();
         var me = await EmployeesApi.GetMeAsync();
         if (me.IsSuccess)
             employeeName = me.Value!.Name;
@@ -225,8 +241,49 @@
     protected override Task OnParametersSetAsync()
     {
         if (Date is DateTime date)
+        {
             weekStart = StartOfWeek(date);
+            if (notice is not null)
+                selectedDay = date.Date;
+        }
         return LoadWeekAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (notice is null || noticeTimeout is not null) return;
+
+        noticeTimeout = new CancellationTokenSource();
+        _ = HideNoticeAfterDelayAsync(noticeTimeout.Token);
+    }
+
+    private async Task HideNoticeAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(6), cancellationToken);
+            await InvokeAsync(() =>
+            {
+                DismissNotice();
+                StateHasChanged();
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // The notice was dismissed or the page was left before the timer elapsed.
+        }
+    }
+
+    private void DismissNotice()
+    {
+        notice = null;
+        noticeTimeout?.Cancel();
+    }
+
+    public void Dispose()
+    {
+        noticeTimeout?.Cancel();
+        noticeTimeout?.Dispose();
     }
 
     private async Task LoadWeekAsync()
