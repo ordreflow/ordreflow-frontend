@@ -1,10 +1,10 @@
-.users-page { max-width: 1050px; margin: 0 auto; }
-.users-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.75rem; }
-.users-header h1 { font-size: 2rem; font-weight: 700; margin-bottom: .4rem; }
+.employees-page { max-width: 1050px; margin: 0 auto; }
+.employees-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.75rem; }
+.employees-header h1 { font-size: 2rem; font-weight: 700; margin-bottom: .4rem; }
 .eyebrow { color: var(--of-primary); text-transform: uppercase; letter-spacing: .1em; font-size: .75rem; font-weight: 700; margin-bottom: .4rem; }
 .muted { color: var(--of-muted); font-size: .9rem; }
-.users-header p:last-child { margin: 0; }
-.users-toolbar { display: grid; grid-template-columns: 1fr 220px; gap: 1rem; padding: 1.25rem; background: var(--of-surface); border: 1px solid var(--of-border); border-radius: var(--of-radius); margin-bottom: 1rem; }
+.employees-header p:last-child { margin: 0; }
+.employees-toolbar { display: grid; grid-template-columns: 1fr 220px; gap: 1rem; padding: 1.25rem; background: var(--of-surface); border: 1px solid var(--of-border); border-radius: var(--of-radius); margin-bottom: 1rem; }
 label { display: block; font-size: .9rem; font-weight: 600; margin-bottom: .4rem; }
 .user-list { list-style: none; padding: 0; display: grid; gap: .75rem; }
 .user-card { width: 100%; display: flex; align-items: center; gap: 1rem; padding: 1.15rem; border: 1px solid var(--of-border); background: var(--of-surface); border-radius: var(--of-radius); text-align: left; box-shadow: var(--of-shadow); color: var(--of-text); }
@@ -38,9 +38,9 @@ label { display: block; font-size: .9rem; font-weight: 600; margin-bottom: .4rem
 .danger-zone p { font-size: .9rem; }
 .dialog-footer { display: flex; justify-content: flex-end; border-top: 1px solid var(--of-border); margin-top: 1.5rem; padding-top: 1rem; }
 @media (max-width: 600px) {
-    .users-header { align-items: flex-start; flex-direction: column; }
-    .users-header .btn { width: 100%; }
-    .users-toolbar { grid-template-columns: 1fr; }
+    .employees-header { align-items: flex-start; flex-direction: column; }
+    .employees-header .btn { width: 100%; }
+    .employees-toolbar { grid-template-columns: 1fr; }
     .user-card { flex-wrap: wrap; gap: .75rem; }
     .user-badges { width: 100%; padding-left: 3.5rem; }
     .user-arrow { display: none; }

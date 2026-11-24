@@ -2,6 +2,8 @@ namespace OrdreFlow.Frontend.Models;
 
 public sealed record ReturnTimeEntryRequest(string Reason);
 
+public sealed record RejectTimeEntryRequest(string? Reason);
+
 public sealed record ReviewTimeEntryRequest(
     string Decision,
     string? Reason);

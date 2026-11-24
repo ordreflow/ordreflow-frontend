@@ -1,6 +1,6 @@
 # OrdreFlow Frontend
 
-The frontend is the mobile-first user interface for OrdreFlow, an internal time-registration and order-management system for VS Automatic.
+The frontend is the mobile-first user interface for OrdreFlow, an internal time-registration and work-planning system for VS Automatic.
 
 ## Responsibilities
 
@@ -8,7 +8,7 @@ The frontend is responsible for:
 
 - Rendering the user interface in the browser
 - Providing a simple phone-first time-registration flow
-- Showing orders, tasks, and time registrations returned by the API
+- Showing departments, categories, accessible work items, and time registrations returned by the API
 - Displaying loading, validation, and error states
 - Calling the backend through HTTP/JSON
 - Applying responsive layouts for phones and desktop screens
@@ -39,7 +39,7 @@ describes the Flox and WSL conventions.
 
 ## Current Status
 
-The Blazor WebAssembly frontend loads orders, tasks, user details, and time registrations from the backend API. The backend supplies the current user's identity; during Development it can use its `DEV_USER_ID` setting until login is implemented.
+The Blazor WebAssembly frontend uses the current Employees, Departments, Work Items, Time Entries, Exports, and Reports API contracts. The signed-in employee profile and its permissions come from `GET api/employees/me`.
 
 ## Project Structure
 
@@ -76,11 +76,11 @@ The Blazor WebAssembly frontend loads orders, tasks, user details, and time regi
 - `src/OrdreFlow.Frontend/Pages/Home.razor`: displays the authenticated user's weekly entries and total.
 - `src/OrdreFlow.Frontend/Pages/RegisterTime.razor`: validates and submits a time registration.
 - `src/OrdreFlow.Frontend/Pages/TimeEntries.razor`: displays successfully submitted entries and the current week's total.
-- `src/OrdreFlow.Frontend/Pages/ReviewTimeEntries.razor`: lets managers review their employees' draft time entries.
-- `src/OrdreFlow.Frontend/Pages/ExportTimeEntries.razor`: lets managers and administrators download accepted time entries as CSV.
+- `src/OrdreFlow.Frontend/Pages/ReviewTimeEntries.razor`: lets category reviewers review entries in their permitted scope.
+- `src/OrdreFlow.Frontend/Pages/ExportTimeEntries.razor`: lets payroll users and administrators create export batches and download CSV.
 - `src/OrdreFlow.Frontend/Layout/`: contains shared application chrome, including the main layout and navigation menu.
 - `src/OrdreFlow.Frontend/Models/`: contains domain, form, and API request/response models.
-- `src/OrdreFlow.Frontend/Services/`: contains HTTP clients for orders, tasks, time entries, user details, and backend health.
+- `src/OrdreFlow.Frontend/Services/`: contains HTTP clients for employees, departments, work planning, work items, time entries, exports, reports, and backend health.
 - `src/OrdreFlow.Frontend/wwwroot/`: contains static assets, CSS, Bootstrap, and runtime configuration such as `appsettings.json`.
 - `src/OrdreFlow.Frontend/Properties/launchSettings.json`: contains local launch profiles and development URLs.
 
@@ -89,60 +89,33 @@ The Blazor WebAssembly frontend loads orders, tasks, user details, and time regi
 ## Component tests
 
 Run `dotnet test tests\OrdreFlow.Frontend.Tests\OrdreFlow.Frontend.Tests.csproj`.
-The bUnit/xUnit tests cover user search, manager-created employee payloads,
-manager-created order payloads, task navigation with the selected order ID,
-task create/edit payloads, the order-filtered task list, and employee access
-restrictions on the user, order, and task pages. They also cover time-entry
-statuses, review loading, edit links, and the manager review page (draft and
-employee filtering, accept/return payloads, and employee access) and the CSV export
-page (period query, file download, empty and error results, and employee access). HTTP and JavaScript are simulated;
-the tests do not call the backend or change real data.
+The bUnit/xUnit tests simulate HTTP and JavaScript; they do not call the backend or change real data.
 
-### User management
+### Current API workflows
 
-Managers and administrators can open **Brugere** (`/users`) from the navigation.
-Managers can view the users visible to them through the API and open read-only
-details. Only administrators can create users, edit profiles, change roles,
-assign managers, or deactivate accounts. New users require a name, email,
-password, and role. These operations show separate success/error feedback;
-authorization remains enforced by the API.
-When creating a user, an administrator may optionally assign an active manager.
+- **Employee administration** (`/users`) uses `GET/POST/PUT api/employees` and the employee permissions, activate, and deactivate endpoints. Only administrators see this page.
+- **Departments** (`/departments`) lists departments and, for administrators, creates them and assigns/removes members and department managers.
+- **Work planning** (`/work-planning`) creates categories under permitted departments and work items under permitted categories. Employees browse only work items returned by `GET api/work-items`, which enforces their access scope.
+- **Time registration** (`/register-time`) selects an accessible work item and sends its ID as `TaskId` to `POST api/time_entries`. The API controls whether the entry can be created or changed.
+- **Review** (`/time-entries/review`) loads `GET api/time_entries/reviewer` and posts decisions to the separate `/accept` and `/return` endpoints. Returning requires a reason; the reviewer permission and category scope are enforced by the API.
+- **Exports** (`/time-entries/export`) creates an export batch with `POST api/exports`, then downloads the batch through `GET api/exports/{id}/download`. Export history and employee selection use the exports endpoints; payroll or administrator permission is required.
+- **Reports** (`/reports/top-categories`) uses `GET api/reports/top-categories` and displays the top categories and work-item hour breakdown.
 
-### Order administration
-
-Active managers and administrators can open **Ordrer** (`/orders`) from the navigation. The
-page lists orders with name search and status filtering. Managers manage their
-own orders; administrators retain access according to the API's permissions. They can
-create an order, select one for details, rename an open order, and confirm
-closing it. Closed orders remain visible but cannot be edited. Writes use the
-existing orders API, and saved data is reloaded after successful operations.
-The API remains responsible for authorization and business rules.
-Order details include a **Gå til opgaver** button that opens `/tasks?orderId={orderId}`
-with the selected order's ID.
-
-### Task management
-
-The tasks page (`/tasks`, "Opgaver") lists tasks from `GET api/tasks`. When opened
-from an order with `?orderId=`, it shows that order's tasks, and the order filter can
-be changed on the page. Selecting a task opens its details (`/tasks/{id}`).
-Managers and administrators can create a task (`/tasks/new`, pre-selecting the
-current order) through `POST api/tasks` and edit its title and description
-(`/tasks/{id}/edit`) through `PUT api/tasks/{id}`; employees only see the list and
-details. The task's order cannot be changed after creation. **Markér som færdig**
-is shown but disabled, because the API has no way to complete a task yet.
-
-The current time-registration flow is:
-
-1. `Home.razor` loads the user's name from `GET api/users/me` and the selected week's entries from `GET api/time_entries?FromDate=...&ToDate=...`.
-2. `RegisterTime.razor` loads orders and their tasks from the API, validates the form, and sends `POST api/time_entries` with the selected task UUID. The backend returns `204 No Content` on success.
-3. Editing and deleting saved entries use the backend's `GET`, `PUT`, and `DELETE api/time_entries/{id}` routes. After a successful write the pages fetch the saved entries again.
-4. `TimeEntries.razor` loads the selected week's saved entries from the API, calculates the weekly total, and shows each entry's status. Opening an entry's reviews calls `GET api/time_entries/{id}/reviews` and displays the decisions, optional reasons, and review dates; the reviews can be refreshed without changing weeks. The **Rediger** link uses the existing edit route; the API decides whether an update is allowed for the entry.
-5. `ReviewTimeEntries.razor` (**Godkend tid**, `/time-entries/review`) is available to active managers and administrators. It loads the selected week's entries from the manager's employees with `GET api/time_entries/manager?FromDate=...&ToDate=...`, shows employee names from `GET api/users`, and filters by employee and status (drafts by default) in the browser. **Godkend** and **Afvis** send `POST api/time_entries/{id}/review` with the decision `accept` or `return`; returning requires a reason. The API only allows reviewing drafts from the manager's own employees.
-6. `ExportTimeEntries.razor` (**Eksporter tid**, `/time-entries/export`) is available to active managers and administrators. The user picks a period (this month by default, with a shortcut for last month) and downloads `GET api/time_entries/export?FromDate=...&ToDate=...`. The request is sent with the login token, so the CSV is fetched by Blazor and saved through `wwwroot/js/download-file.js`. The file contains accepted and finalized entries: managers get their own employees, administrators get everyone. If the period has no accepted entries, no file is downloaded and a message is shown.
+The navigation is permission-based and mirrors the API's `Administrator`, `Payroll`, `DepartmentManager`, and `CatagoryReviewer` permissions. It is a usability aid only; the API remains authoritative for access and business rules.
 
 The frontend communicates with the backend through HTTP/JSON only. It does not connect directly to PostgreSQL, use Entity Framework Core, or replace business and security rules that belong in the API. Frontend models mirror the backend's request and response contracts; review-specific requests live in `Models/TimeEntryReview.cs`.
 
 The shared footer checks `GET api/health` on load and every 30 seconds while the app is open. It displays the backend as available only for a successful response containing `{"status":"ok"}`. The check uses the configured `ApiBaseUrl` (and the existing `/api/` proxy in the Docker image).
+
+## Installable app (PWA)
+
+OrdreFlow has a web app manifest and service worker, so browsers can offer **Install app** (or **Add to Home Screen** on iOS) when served over HTTPS or localhost. The installed app opens in its own window. The existing OrdreFlow icon is used for the home-screen icon.
+
+In published builds, Blazor generates `service-worker-assets.js`; the published service worker caches the versioned static app files and supports loading the app shell after a successful online visit. Development builds use a network-only service worker so local changes appear immediately. Updates download in the background and normally become active after all app tabs are closed.
+
+All `/api/` calls remain network-only. Signing in, loading the employee profile, and working with time entries still require the backend. External Google Fonts and the D3 chart script are also not part of the offline cache. Offline data, edits, and synchronization are future work; installing the PWA does not enable them.
+
+To check the published behavior, run `dotnet publish src/OrdreFlow.Frontend/OrdreFlow.Frontend.csproj -c Release`, serve its `wwwroot` output on localhost or HTTPS (with SPA fallback to `index.html`), and check the browser's Application panel for the manifest, registered service worker, and installation option. Visit once online before trying an offline reload. Use a real backend to check API-dependent screens.
 
 ## Running Locally
 

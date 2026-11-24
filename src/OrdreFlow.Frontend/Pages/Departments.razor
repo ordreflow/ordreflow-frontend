@@ -1,0 +1,234 @@
+@page "/departments"
+@page "/orders"
+@inject DepartmentsApiClient DepartmentsApi
+@inject EmployeesApiClient EmployeesApi
+@inject AuthState AuthState
+
+<PageTitle>Afdelinger | OrdreFlow</PageTitle>
+
+<section class="departments-page">
+    <header class="departments-header">
+        <div>
+            <p class="eyebrow">Organisation</p>
+            <h1>Afdelinger</h1>
+            <p class="muted">Afdelinger afgrænser medarbejdere og planlagt arbejde.</p>
+        </div>
+    </header>
+
+    @if (error is not null)
+    {
+        <p class="alert alert-danger" role="alert">@error</p>
+        <button class="btn btn-outline-primary" type="button" @onclick="LoadAsync">Prøv igen</button>
+    }
+    @if (notice is not null)
+    {
+        <p class="alert alert-success" role="status">@notice</p>
+    }
+    @if (isLoading)
+    {
+        <p role="status">Henter afdelinger...</p>
+    }
+    else if (AuthState.IsAdministrator)
+    {
+        <EditForm Model="createForm" OnValidSubmit="CreateAsync" class="d-flex gap-2 mb-4">
+            <DataAnnotationsValidator />
+            <InputText class="form-control" placeholder="Afdelingens navn" @bind-Value="createForm.Name" />
+            <button type="submit" class="btn btn-primary" disabled="@isBusy">Opret afdeling</button>
+        </EditForm>
+    }
+
+    @if (!isLoading && departments.Count == 0 && error is null)
+    {
+        <p class="empty-state">Der er ingen afdelinger tilgængelige.</p>
+    }
+    else
+    {
+        <div class="d-grid gap-3">
+            @foreach (var department in departments)
+            {
+                <article class="card p-3" @key="department.Id">
+                    <h2 class="h4">@department.Name</h2>
+                    <p class="muted">@(department.ManagedByMe ? "Du administrerer denne afdeling." : "Afdeling")</p>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <h3 class="h6">Ledere</h3>
+                            @if (department.Managers.Count == 0)
+                            {
+                                <p class="muted">Ingen afdelingsledere.</p>
+                            }
+                            else
+                            {
+                                <ul>
+                                    @foreach (var manager in department.Managers)
+                                    {
+                                        <li>
+                                            @manager.Name (@manager.Email)
+                                            @if (AuthState.IsAdministrator)
+                                            {
+                                                <button class="btn btn-sm btn-outline-danger ms-2" disabled="@isBusy"
+                                                        @onclick="() => RemoveManagerAsync(department.Id, manager.EmployeeId)">Fjern</button>
+                                            }
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                            @if (AuthState.IsAdministrator)
+                            {
+                                <div class="input-group">
+                                    <select class="form-select" @bind="managerSelections[department.Id]">
+                                        <option value="">Vælg leder</option>
+                                        @foreach (var employee in employees)
+                                        {
+                                            <option value="@employee.Id">@employee.Name</option>
+                                        }
+                                    </select>
+                                    <button class="btn btn-outline-primary" disabled="@(isBusy || string.IsNullOrEmpty(managerSelections[department.Id]))"
+                                            @onclick="() => AppointManagerAsync(department.Id)">Tilknyt</button>
+                                </div>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <h3 class="h6">Medarbejdere</h3>
+                            @if (department.Members.Count == 0)
+                            {
+                                <p class="muted">Ingen medarbejdere.</p>
+                            }
+                            else
+                            {
+                                <ul>
+                                    @foreach (var member in department.Members)
+                                    {
+                                        <li>
+                                            @member.Name (@member.Email)
+                                            @if (AuthState.IsAdministrator)
+                                            {
+                                                <button class="btn btn-sm btn-outline-danger ms-2" disabled="@isBusy"
+                                                        @onclick="() => RemoveEmployeeAsync(department.Id, member.EmployeeId)">Fjern</button>
+                                            }
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                            @if (AuthState.IsAdministrator)
+                            {
+                                <div class="input-group">
+                                    <select class="form-select" @bind="memberSelections[department.Id]">
+                                        <option value="">Vælg medarbejder</option>
+                                        @foreach (var employee in employees)
+                                        {
+                                            <option value="@employee.Id">@employee.Name</option>
+                                        }
+                                    </select>
+                                    <button class="btn btn-outline-primary" disabled="@(isBusy || string.IsNullOrEmpty(memberSelections[department.Id]))"
+                                            @onclick="() => AddEmployeeAsync(department.Id)">Tilknyt</button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private IReadOnlyList<DepartmentResponse> departments = [];
+    private IReadOnlyList<EmployeeResponse> employees = [];
+    private readonly Dictionary<Guid, string> memberSelections = [];
+    private readonly Dictionary<Guid, string> managerSelections = [];
+    private DepartmentForm createForm = new();
+    private bool isLoading = true;
+    private bool isBusy;
+    private string? error;
+    private string? notice;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        error = null;
+        var result = await DepartmentsApi.GetDepartmentsAsync();
+        if (!result.IsSuccess)
+        {
+            error = Errors(result);
+        }
+        else
+        {
+            departments = result.Value!.Items;
+            foreach (var department in departments)
+            {
+                memberSelections.TryAdd(department.Id, "");
+                managerSelections.TryAdd(department.Id, "");
+            }
+            if (AuthState.IsAdministrator)
+            {
+                var employeeResult = await EmployeesApi.GetEmployeesAsync();
+                if (!employeeResult.IsSuccess)
+                    error = Errors(employeeResult);
+                else
+                    employees = employeeResult.Value!.Items;
+            }
+        }
+        isLoading = false;
+    }
+
+    private async Task CreateAsync()
+    {
+        if (!AuthState.IsAdministrator || string.IsNullOrWhiteSpace(createForm.Name)) return;
+        await RunAsync(() => DepartmentsApi.CreateAsync(new CreateDepartmentRequest(createForm.Name.Trim())),
+            "Afdelingen er oprettet.");
+        createForm = new();
+    }
+
+    private Task AddEmployeeAsync(Guid departmentId) =>
+        MutateDepartmentAsync(departmentId, memberSelections[departmentId],
+            (id, employeeId) => DepartmentsApi.AddEmployeeAsync(id, employeeId), "Medarbejderen er tilknyttet.");
+
+    private Task RemoveEmployeeAsync(Guid departmentId, Guid employeeId) =>
+        MutateDepartmentAsync(departmentId, employeeId.ToString(),
+            (id, memberId) => DepartmentsApi.RemoveEmployeeAsync(id, memberId), "Medarbejderen er fjernet.");
+
+    private Task AppointManagerAsync(Guid departmentId) =>
+        MutateDepartmentAsync(departmentId, managerSelections[departmentId],
+            (id, employeeId) => DepartmentsApi.AppointManagerAsync(id, employeeId), "Lederen er tilknyttet.");
+
+    private Task RemoveManagerAsync(Guid departmentId, Guid employeeId) =>
+        MutateDepartmentAsync(departmentId, employeeId.ToString(),
+            (id, managerId) => DepartmentsApi.RemoveManagerAsync(id, managerId), "Lederen er fjernet.");
+
+    private async Task MutateDepartmentAsync(
+        Guid departmentId,
+        string employeeValue,
+        Func<Guid, Guid, Task<ApiResult<bool>>> operation,
+        string success)
+    {
+        if (!AuthState.IsAdministrator || !Guid.TryParse(employeeValue, out var employeeId)) return;
+        await RunAsync(() => operation(departmentId, employeeId), success);
+    }
+
+    private async Task RunAsync<T>(Func<Task<ApiResult<T>>> operation, string success)
+    {
+        isBusy = true;
+        error = notice = null;
+        var result = await operation();
+        if (result.IsSuccess)
+        {
+            notice = success;
+            await LoadAsync();
+        }
+        else
+        {
+            error = Errors(result);
+        }
+        isBusy = false;
+    }
+
+    private static string Errors<T>(ApiResult<T> result) => string.Join(" ", result.Errors.Select(item => item.Message));
+
+    private sealed class DepartmentForm
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Name { get; set; } = "";
+    }
+}

@@ -9,27 +9,16 @@ public interface ITimeEntriesApiClient
         DateOnly toDate,
         CancellationToken cancellationToken = default);
 
-    // Entries from the signed-in manager's employees (Manager or Admin role).
-    Task<ApiResult<ViewTimeEntriesResponse>> GetManagerEntriesAsync(
+    Task<ApiResult<ViewTimeEntriesResponse>> GetReviewerEntriesAsync(
         DateOnly fromDate,
         DateOnly toDate,
         CancellationToken cancellationToken = default);
 
     Task<ApiResult<TimeEntryResponse>> GetAsync(Guid id, CancellationToken cancellationToken = default);
 
-    // CSV of accepted and finalized entries in the period (Manager or Admin role),
-    // optionally for one employee only.
-    Task<ApiResult<DownloadedFile>> ExportAcceptedAsync(
-        DateOnly fromDate,
-        DateOnly toDate,
-        Guid? employeeId = null,
-        CancellationToken cancellationToken = default);
+    Task<ApiResult<bool>> AcceptAsync(Guid id, CancellationToken cancellationToken = default);
 
-    // Decision is "accept" or "return"; a reason is required when returning.
-    Task<ApiResult<bool>> ReviewAsync(
-        Guid id,
-        ReviewTimeEntryRequest request,
-        CancellationToken cancellationToken = default);
+    Task<ApiResult<bool>> ReturnAsync(Guid id, RejectTimeEntryRequest request, CancellationToken cancellationToken = default);
 
     Task<ApiResult<ViewTimeEntryReviewsResponse>> GetReviewsAsync(
         Guid timeEntryId,

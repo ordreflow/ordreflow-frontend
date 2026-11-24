@@ -1,90 +1,68 @@
+@page "/work-items/{Id:guid}"
 @page "/tasks/{Id:guid}"
-@inject TasksApiClient TasksApiClient
-@inject OrdersApiClient OrdersApiClient
-@inject AuthState AuthState
+@inject WorkItemsApiClient WorkItemsApi
 
-<PageTitle>OrdreFlow</PageTitle>
+<PageTitle>Arbejdsopgave | OrdreFlow</PageTitle>
 
-<div class="of-card">
+<section class="of-card">
     <div class="of-card-header">
-        <a class="of-back-btn" href="@(task is null ? "tasks" : $"tasks?orderId={task.OrderId:D}")" aria-label="Tilbage til opgaver">
+        <a class="of-back-btn" href="/work-items" aria-label="Tilbage til arbejdsopgaver">
             <span aria-hidden="true"><NavIcon Name="chevron-left" /></span>
         </a>
-        <h1>Opgave</h1>
+        <h1>Arbejdsopgave</h1>
     </div>
-
     @if (isLoading)
     {
-        <p class="of-muted">Henter opgave...</p>
+        <p role="status">Henter arbejdsopgave...</p>
     }
-    else if (loadError is not null)
+    else if (error is not null)
     {
-        <p class="validation-message" role="alert">@loadError</p>
-        <button type="button" class="btn btn-outline-primary" @onclick="LoadAsync">Prøv igen</button>
+        <p class="validation-message" role="alert">@error</p>
+        <button class="btn btn-outline-primary" @onclick="LoadAsync">Prøv igen</button>
     }
-    else if (task is not null)
+    else if (work is not null)
     {
         <dl class="task-details">
-            <dt>Sag</dt>
-            <dd>@(order?.Name ?? "Ukendt sag")</dd>
-            <dt>Titel</dt>
-            <dd class="task-details-title">@task.Title</dd>
+            <dt>Afdeling</dt>
+            <dd>@work.DepartmentName</dd>
+            <dt>Kategori</dt>
+            <dd>@work.CategoryName</dd>
+            <dt>Navn</dt>
+            <dd class="task-details-title">@work.Name</dd>
+            <dt>Type</dt>
+            <dd>@work.Kind</dd>
             <dt>Beskrivelse</dt>
             <dd class="task-details-description">
-                @(string.IsNullOrWhiteSpace(task.Description) ? "Ingen beskrivelse" : task.Description)
+                @(string.IsNullOrWhiteSpace(work.Description) ? "Ingen beskrivelse" : work.Description)
             </dd>
-        </dl>
-
-        <div class="task-actions">
-            @if (AuthState.IsManagerOrAdmin)
+            @if (work.AssignmentOnly)
             {
-                <a class="btn btn-outline-primary" href="tasks/@task.Id.ToString("D")/edit">Rediger</a>
+                <dt>Tildeling</dt>
+                <dd>@(work.AssignedToMe ? "Tildelt dig" : "Kun synlig for tildelte medarbejdere")</dd>
             }
-
-            @* The backend has no way to complete a task yet (no status on Task, no endpoint), so this is disabled for now. *@
-            <button type="button" class="btn btn-success" disabled title="Kommer i en senere version">
-                Markér som færdig
-            </button>
-        </div>
-        <p class="task-actions-hint">Markér som færdig kommer i en senere version.</p>
+        </dl>
     }
-</div>
+</section>
 
 @code {
-    [Parameter]
-    public Guid Id { get; set; }
+    [Parameter] public Guid Id { get; set; }
 
-    private TaskResponse? task;
-    private OrderResponse? order;
+    private AccessibleWorkResponse? work;
     private bool isLoading = true;
-    private string? loadError;
+    private string? error;
 
     protected override Task OnParametersSetAsync() => LoadAsync();
 
     private async Task LoadAsync()
     {
         isLoading = true;
-        loadError = null;
-        task = null;
-        order = null;
-
-        var taskRequest = TasksApiClient.GetTaskAsync(Id);
-        var ordersRequest = OrdersApiClient.GetOrdersAsync();
-        var taskResult = await taskRequest;
-        var orderResult = await ordersRequest;
-
-        if (!taskResult.IsSuccess)
-        {
-            loadError = string.Join(" ", taskResult.Errors.Select(error => error.Message));
-        }
+        error = null;
+        work = null;
+        var result = await WorkItemsApi.GetAsync(Id);
+        if (result.IsSuccess)
+            work = result.Value;
         else
-        {
-            task = taskResult.Value!;
-            order = orderResult.IsSuccess
-                ? orderResult.Value!.Items.FirstOrDefault(item => item.Id == task.OrderId)
-                : null;
-        }
-
+            error = string.Join(" ", result.Errors.Select(item => item.Message));
         isLoading = false;
     }
 }

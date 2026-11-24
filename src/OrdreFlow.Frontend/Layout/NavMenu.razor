@@ -53,7 +53,7 @@
             <span class="user-avatar" aria-hidden="true">@Initials(user.Name)</span>
             <span class="user-info">
                 <span class="user-name">@user.Name</span>
-                <span class="user-role">@RoleName(user.Role)</span>
+                <span class="user-role">@PermissionSummary(user)</span>
             </span>
             <button type="button" class="logout-btn" title="Log ud" aria-label="Log ud" @onclick="SignOut">
                 <NavIcon Name="logout" />
@@ -73,7 +73,6 @@
 
     private sealed record NavGroup(string Title, IReadOnlyList<NavItem> Items);
 
-    // Same role rules as the pages and the API: management pages need an active manager or admin.
     private IEnumerable<NavGroup> Groups
     {
         get
@@ -84,22 +83,29 @@
                 new NavItem("time-entries", "Mine registreringer", "list", ExactMatch: true)
             ]);
 
-            if (AuthState.User is { Role: "Admin" or "Manager", Status: "Active" })
+            if (AuthState.CanReviewTime || AuthState.CanExportTime || AuthState.CanPlanWork || AuthState.CanViewReports)
             {
-                yield return new NavGroup("Ledelse",
-                [
-                    new NavItem("time-entries/review", "Godkend tid", "check"),
-                    new NavItem("time-entries/export", "Eksporter tid", "download"),
-                    new NavItem("orders", "Ordrer", "briefcase"),
-                    new NavItem("reports/top-orders", "Rapporter", "chart")
-                ]);
+                var managementItems = new List<NavItem>();
+                if (AuthState.CanReviewTime)
+                    managementItems.Add(new NavItem("time-entries/review", "Review tid", "check"));
+                if (AuthState.CanExportTime)
+                    managementItems.Add(new NavItem("time-entries/export", "Eksporter tid", "download"));
+                if (AuthState.CanPlanWork)
+                {
+                    managementItems.Add(new NavItem("work-planning", "Planlæg arbejde", "briefcase"));
+                    managementItems.Add(new NavItem("departments", "Afdelinger", "users"));
+                }
+                if (AuthState.CanViewReports)
+                    managementItems.Add(new NavItem("reports/top-categories", "Rapporter", "chart"));
+                yield return new NavGroup("Arbejde", managementItems);
             }
 
-            if (AuthState.User?.Role is "Admin" or "Manager")
+            if (AuthState.IsAdministrator)
             {
                 yield return new NavGroup("Administration",
                 [
-                    new NavItem("users", "Brugere", "users")
+                    new NavItem("users", "Medarbejdere", "users"),
+                    new NavItem("departments", "Afdelinger", "briefcase")
                 ]);
             }
         }
@@ -120,13 +126,18 @@
         }
     }
 
-    private static string RoleName(string role) => role switch
+    private static string PermissionSummary(EmployeeResponse user)
     {
-        "Admin" => "Administrator",
-        "Manager" => "Leder",
-        "Employee" => "Medarbejder",
-        _ => role
-    };
+        var permissions = (user.Permissions ?? []).Select(permission => permission switch
+        {
+            "Administrator" => "Administrator",
+            "Payroll" => "Løn",
+            "DepartmentManager" => "Afdelingsleder",
+            "CatagoryReviewer" => "Reviewer",
+            _ => permission
+        });
+        return string.Join(" · ", permissions);
+    }
 
     private static string Initials(string name) => string.Concat(name
         .Split(' ', StringSplitOptions.RemoveEmptyEntries)

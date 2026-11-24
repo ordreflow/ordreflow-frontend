@@ -1,5 +1,5 @@
 
-export function render(container, orders, dotNetReference) {
+export function render(container, categories, dotNetReference) {
     const d3 = window.d3;
 
     if (!d3) {
@@ -9,7 +9,7 @@ export function render(container, orders, dotNetReference) {
 
     container.replaceChildren();
 
-    if (!orders || orders.length === 0) {
+    if (!categories || categories.length === 0) {
         return;
     }
 
@@ -25,15 +25,15 @@ export function render(container, orders, dotNetReference) {
     const rowGap = 18;
 
     const chartBottom =
-        margin.top + orders.length * (barHeight + rowGap);
+        margin.top + categories.length * (barHeight + rowGap);
 
     const height = chartBottom + margin.bottom;
 
-    // Collect all unique tasks.
+    // Collect all unique work items.
     const taskMap = new Map();
 
-    orders.forEach(order => {
-        (order.tasks ?? []).forEach(task => {
+    categories.forEach(category => {
+        (category.tasks ?? []).forEach(task => {
             taskMap.set(task.taskId, {
                 id: task.taskId,
                 name: task.taskName
@@ -50,19 +50,19 @@ export function render(container, orders, dotNetReference) {
 
     const taskKeys = tasks.map(task => task.id);
 
-    // Create one data row for each order.
-    const data = orders.map(order => {
+    // Create one data row for each category.
+    const data = categories.map(category => {
         const row = {
-            orderId: order.orderId,
-            orderName: order.orderName,
-            totalHours: order.totalHours
+            categoryId: category.categoryId,
+            categoryName: category.categoryName,
+            totalHours: category.totalHours
         };
 
         taskKeys.forEach(taskId => {
             row[taskId] = 0;
         });
 
-        (order.tasks ?? []).forEach(task => {
+        (category.tasks ?? []).forEach(task => {
             row[task.taskId] = task.totalHours;
         });
 
@@ -84,7 +84,7 @@ export function render(container, orders, dotNetReference) {
         .range([margin.left, width - margin.right]);
 
     const y = d3.scaleBand()
-        .domain(data.map(d => d.orderId))
+        .domain(data.map(d => d.categoryId))
         .range([
             margin.top,
             chartBottom
@@ -103,13 +103,13 @@ export function render(container, orders, dotNetReference) {
         .call(d3.axisBottom(x).ticks(6))
         .call(g => g.select(".domain").attr("stroke", "currentColor"));
 
-    // Y-axis with order names.
+    // Y-axis with category names.
     svg.append("g")
         .attr("transform", `translate(${margin.left}, 0)`)
         .call(
             d3.axisLeft(y)
                 .tickFormat(id =>
-                    data.find(d => d.orderId === id)?.orderName ?? ""
+                    data.find(d => d.categoryId === id)?.categoryName ?? ""
                 )
         )
         .call(g => g.select(".domain").remove());
@@ -145,12 +145,12 @@ export function render(container, orders, dotNetReference) {
             seriesItem.map(segment => ({
                 segment,
                 taskId: seriesItem.key,
-                order: segment.data
+                category: segment.data
             }))
         )
         .join("rect")
         .attr("x", d => x(d.segment[0]))
-        .attr("y", d => y(d.order.orderId))
+        .attr("y", d => y(d.category.categoryId))
         .attr("width", d =>
             Math.max(0, x(d.segment[1]) - x(d.segment[0]))
         )
@@ -161,21 +161,21 @@ export function render(container, orders, dotNetReference) {
         // Tooltip on hover.
         .on("mousemove", function (event, d) {
             const task = taskMap.get(d.taskId);
-            const hours = d.order[d.taskId];
+            const hours = d.category[d.taskId];
 
-            const percentage = d.order.totalHours > 0
-                ? (hours / d.order.totalHours) * 100
+            const percentage = d.category.totalHours > 0
+                ? (hours / d.category.totalHours) * 100
                 : 0;
 
             tooltip
                 .style("visibility", "visible")
                 .html(`
-                    <strong>${escapeHtml(d.order.orderName)}</strong><br>
-                    Opgave: ${escapeHtml(task?.name ?? "Ukendt")}<br>
+                    <strong>${escapeHtml(d.category.categoryName)}</strong><br>
+                    Arbejdsopgave: ${escapeHtml(task?.name ?? "Ukendt")}<br>
                     Timer: ${hours.toLocaleString("da-DK")}<br>
                     Andel: ${percentage.toFixed(1).replace(".", ",")}%<br>
-                    I alt på ordre:
-                    ${d.order.totalHours.toLocaleString("da-DK")} timer
+                    I alt i kategori:
+                    ${d.category.totalHours.toLocaleString("da-DK")} timer
                 `);
 
             const bounds = container.getBoundingClientRect();
@@ -189,12 +189,12 @@ export function render(container, orders, dotNetReference) {
             tooltip.style("visibility", "hidden");
         })
 
-        // Select order on click.
+        // Select category on click.
         .on("click", function (event, d) {
             if (dotNetReference) {
                 dotNetReference.invokeMethodAsync(
-                    "SelectOrder",
-                    d.order.orderId
+                    "SelectCategory",
+                    d.category.categoryId
                 );
             }
         });
@@ -205,7 +205,7 @@ export function render(container, orders, dotNetReference) {
         .join("text")
         .attr("class", "total-label")
         .attr("x", d => x(d.totalHours) + 6)
-        .attr("y", d => y(d.orderId) + y.bandwidth() / 2)
+        .attr("y", d => y(d.categoryId) + y.bandwidth() / 2)
         .attr("dy", "0.35em")
         .attr("font-size", "12px")
         .attr("fill", "currentColor")
